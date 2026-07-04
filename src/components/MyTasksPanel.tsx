@@ -145,8 +145,10 @@ export function MyTasksPanel({ token, facilityId }: MyTasksPanelProps) {
   const [recordFile, setRecordFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [savingRecord, setSavingRecord] = useState(false);
   const [datePickerTarget, setDatePickerTarget] = useState<'dialogFrom' | 'dialogTo' | 'record' | null>(null);
+  const [iosPickerVisible, setIosPickerVisible] = useState(false);
+  const [iosPickerDate, setIosPickerDate] = useState(new Date());
 
-  const showDatePicker = datePickerTarget !== null;
+  const showAndroidDatePicker = Platform.OS === 'android' && datePickerTarget !== null;
 
   const pickerValue = useMemo(() => {
     if (datePickerTarget === 'dialogFrom') {
@@ -163,6 +165,50 @@ export function MyTasksPanel({ token, facilityId }: MyTasksPanelProps) {
 
     return new Date();
   }, [datePickerTarget, draftCustomFromDate, draftCustomToDate, recordDate]);
+
+  const applyPickedDate = (target: 'dialogFrom' | 'dialogTo' | 'record', selectedDate: Date) => {
+    const nextValue = formatDateInput(selectedDate);
+
+    if (target === 'dialogFrom') {
+      setDraftCustomFromDate(nextValue);
+      return;
+    }
+
+    if (target === 'dialogTo') {
+      setDraftCustomToDate(nextValue);
+      return;
+    }
+
+    setRecordDate(nextValue);
+  };
+
+  const openDatePicker = (target: 'dialogFrom' | 'dialogTo' | 'record') => {
+    setDatePickerTarget(target);
+
+    if (Platform.OS === 'ios') {
+      setIosPickerDate(
+        target === 'dialogFrom'
+          ? parseDateInput(draftCustomFromDate)
+          : target === 'dialogTo'
+          ? parseDateInput(draftCustomToDate)
+          : parseDateInput(recordDate)
+      );
+      setIosPickerVisible(true);
+    }
+  };
+
+  const closeIosPicker = () => {
+    setIosPickerVisible(false);
+    setDatePickerTarget(null);
+  };
+
+  const confirmIosPicker = () => {
+    if (datePickerTarget) {
+      applyPickedDate(datePickerTarget, iosPickerDate);
+    }
+
+    closeIosPicker();
+  };
 
   const refreshTasks = async (nextFromDate = fromDate, nextToDate = toDate) => {
     setLoading(true);
@@ -278,6 +324,13 @@ export function MyTasksPanel({ token, facilityId }: MyTasksPanelProps) {
   };
 
   const onDatePickerChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (Platform.OS === 'ios') {
+      if (selectedDate) {
+        setIosPickerDate(selectedDate);
+      }
+      return;
+    }
+
     if (event.type === 'dismissed') {
       setDatePickerTarget(null);
       return;
@@ -288,19 +341,7 @@ export function MyTasksPanel({ token, facilityId }: MyTasksPanelProps) {
       return;
     }
 
-    const nextValue = formatDateInput(selectedDate);
-
-    if (datePickerTarget === 'dialogFrom') {
-      setDraftCustomFromDate(nextValue);
-    }
-
-    if (datePickerTarget === 'dialogTo') {
-      setDraftCustomToDate(nextValue);
-    }
-
-    if (datePickerTarget === 'record') {
-      setRecordDate(nextValue);
-    }
+    applyPickedDate(datePickerTarget, selectedDate);
 
     setDatePickerTarget(null);
   };
@@ -404,7 +445,7 @@ export function MyTasksPanel({ token, facilityId }: MyTasksPanelProps) {
             <Feather
               name={isFilterAccordionOpen ? 'chevron-up' : 'chevron-down'}
               size={18}
-              color={themeColors.primary}
+              color={themeColors.textOnBrand}
             />
           </Pressable>
 
@@ -433,13 +474,13 @@ export function MyTasksPanel({ token, facilityId }: MyTasksPanelProps) {
               {draftFilterOption === 'custom' ? (
                 <View style={styles.customRangeWrap}>
                   <Text style={styles.label}>From</Text>
-                  <Pressable style={styles.datePickerButton} onPress={() => setDatePickerTarget('dialogFrom')}>
+                  <Pressable style={styles.datePickerButton} onPress={() => openDatePicker('dialogFrom')}>
                     <Text style={styles.datePickerText}>{draftCustomFromDate}</Text>
                     <Feather name="calendar" size={14} color={themeColors.primary} />
                   </Pressable>
 
                   <Text style={styles.label}>To</Text>
-                  <Pressable style={styles.datePickerButton} onPress={() => setDatePickerTarget('dialogTo')}>
+                  <Pressable style={styles.datePickerButton} onPress={() => openDatePicker('dialogTo')}>
                     <Text style={styles.datePickerText}>{draftCustomToDate}</Text>
                     <Feather name="calendar" size={14} color={themeColors.primary} />
                   </Pressable>
@@ -592,7 +633,7 @@ export function MyTasksPanel({ token, facilityId }: MyTasksPanelProps) {
             <TextInput value={recordName} onChangeText={setRecordName} style={styles.input} placeholder="Record name" />
 
             <Text style={styles.label}>Record Date</Text>
-            <Pressable style={styles.datePickerButton} onPress={() => setDatePickerTarget('record')}>
+            <Pressable style={styles.datePickerButton} onPress={() => openDatePicker('record')}>
               <Text style={styles.datePickerText}>{recordDate}</Text>
               <Feather name="calendar" size={14} color={themeColors.primary} />
             </Pressable>
@@ -638,13 +679,38 @@ export function MyTasksPanel({ token, facilityId }: MyTasksPanelProps) {
         </View>
       </Modal>
 
-      {showDatePicker ? (
+      {showAndroidDatePicker ? (
         <DateTimePicker
           value={pickerValue}
           mode="date"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          display="default"
           onChange={onDatePickerChange}
         />
+      ) : null}
+
+      {Platform.OS === 'ios' && iosPickerVisible && datePickerTarget ? (
+        <Modal animationType="fade" transparent visible onRequestClose={closeIosPicker}>
+          <View style={styles.pickerModalOverlay}>
+            <Pressable style={styles.pickerModalBackdrop} onPress={closeIosPicker} />
+            <View style={styles.pickerModalCard}>
+              <Text style={styles.pickerModalTitle}>Select Date</Text>
+              <DateTimePicker
+                value={iosPickerDate}
+                mode="date"
+                display="spinner"
+                onChange={onDatePickerChange}
+              />
+              <View style={styles.pickerModalActions}>
+                <Pressable style={styles.dialogCancelButton} onPress={closeIosPicker}>
+                  <Text style={styles.dialogCancelText}>Cancel</Text>
+                </Pressable>
+                <Pressable style={styles.dialogApplyButton} onPress={confirmIosPicker}>
+                  <Text style={styles.dialogApplyText}>Done</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
       ) : null}
     </View>
   );
@@ -652,19 +718,20 @@ export function MyTasksPanel({ token, facilityId }: MyTasksPanelProps) {
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: 20,
+    borderRadius: 6,
     backgroundColor: themeColors.surface,
-    borderWidth: 1,
-    borderColor: themeColors.border,
-    padding: 14,
+    borderWidth: 2,
+    borderColor: themeColors.primary,
+    padding: 0,
     minHeight: 320,
   },
   filterCard: {
-    borderRadius: 14,
+    borderTopEndRadius: 4,
+    borderTopStartRadius: 4,
     borderWidth: 1,
-    borderColor: themeColors.border,
-    backgroundColor: themeColors.surfaceMuted,
-    padding: 12,
+    borderColor: themeColors.primary,
+    backgroundColor: themeColors.primary,
+    padding: 0,
     marginBottom: 10,
   },
   sectionTitle: {
@@ -679,9 +746,8 @@ const styles = StyleSheet.create({
   },
   selectedFilterSummary: {
     borderRadius: 10,
-    borderWidth: 1,
     borderColor: themeColors.border,
-    backgroundColor: themeColors.surface,
+    backgroundColor: themeColors.primary,
     paddingHorizontal: 10,
     paddingVertical: 8,
   },
@@ -698,10 +764,11 @@ const styles = StyleSheet.create({
     marginTop: 10,
     borderTopWidth: 1,
     borderTopColor: themeColors.border,
-    paddingTop: 10,
+    backgroundColor: themeColors.surfaceMuted,
+    padding: 10,
   },
   selectedFilterLabel: {
-    color: themeColors.textSecondary,
+    color: themeColors.textOnBrand,
     fontSize: 11,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
@@ -712,7 +779,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   selectedFilterDates: {
-    color: themeColors.textSecondary,
+    color: themeColors.textOnBrand,
     fontSize: 12,
   },
   dateRow: {
@@ -776,11 +843,12 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   list: {
-    maxHeight: 460,
+    //maxHeight: 460,
   },
   listContent: {
     gap: 10,
     paddingBottom: 8,
+    paddingHorizontal: 10,
   },
   taskCard: {
     borderRadius: 12,
@@ -1022,5 +1090,39 @@ const styles = StyleSheet.create({
     color: themeColors.textOnBrand,
     fontSize: 13,
     fontWeight: '700',
+  },
+  pickerModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+  },
+  pickerModalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  pickerModalCard: {
+    borderRadius: 14,
+    backgroundColor: themeColors.surface,
+    borderWidth: 1,
+    borderColor: themeColors.border,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 10,
+  },
+  pickerModalTitle: {
+    color: themeColors.textPrimary,
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  pickerModalActions: {
+    marginTop: 4,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
   },
 });

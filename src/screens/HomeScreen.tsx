@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Card, IconButton, Text } from 'react-native-paper';
 import {AppBar} from '../components/AppBar'
 import { AttendancePanel } from '../components/AttendancePanel';
@@ -35,6 +35,7 @@ const menuItems: SideMenuItem[] = [
 
 export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProps) {
   const displayName = buildDisplayName(user);
+  const insets = useSafeAreaInsets();
   const [activePage, setActivePage] = useState<PageKey>('Home');
   const [isMenuVisible, setIsMenuVisible] = useState(false);
   const [isProfileMenuVisible, setIsProfileMenuVisible] = useState(false);
@@ -144,9 +145,12 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
           </View>
         </View>
 
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View
+          style={[styles.contentScroll, { paddingBottom: insets.bottom + 16 }]}
+          //contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 16 }]}
+        >
           {renderPageContent()}
-        </ScrollView>
+        </View>
       </View>
 
       <SideMenu
@@ -214,10 +218,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
+  contentScroll: {
+    flex: 1,
+  },
   scrollContent: {
-    paddingTop: 8,
-    paddingBottom: 24,
-    gap: 14,
+    flexGrow: 1,
+    paddingTop: 3,
   },
   quickActionsRow: {
     flexDirection: 'row',
