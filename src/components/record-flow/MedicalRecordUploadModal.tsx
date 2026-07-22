@@ -103,8 +103,9 @@ export function MedicalRecordUploadModal({ visible, token, serviceId, onClose, o
           </Pressable>
         </View>
 
-        <ScrollView contentContainerStyle={allStyles.modalBody}>
-          {errorMessage ? <Text style={allStyles.errorText}>{errorMessage}</Text> : null}
+        <View style={allStyles.modalContent}>
+          <ScrollView style={allStyles.modalScroll} contentContainerStyle={allStyles.modalBodyWithFooter}>
+            {errorMessage ? <Text style={allStyles.errorText}>{errorMessage}</Text> : null}
 
           <Text style={allStyles.label}>Record Name</Text>
           <TextInput value={recordName} onChangeText={setRecordName} style={allStyles.input} placeholder="Record name" />
@@ -134,10 +135,18 @@ export function MedicalRecordUploadModal({ visible, token, serviceId, onClose, o
 
           <Text style={allStyles.fileNameText}>{recordFile?.name ?? 'No file selected'}</Text>
 
-          <Pressable style={[allStyles.filterButton, saving ? allStyles.disabledButton : null]} disabled={saving} onPress={() => void saveRecord()}>
-            <Text style={allStyles.filterButtonText}>{saving ? 'Saving...' : 'Save Medical Record'}</Text>
-          </Pressable>
-        </ScrollView>
+          </ScrollView>
+
+          <View style={allStyles.modalFooter}>
+            <Pressable
+              style={[allStyles.filterButton, allStyles.modalFooterButton, saving ? allStyles.disabledButton : null]}
+              disabled={saving}
+              onPress={() => void saveRecord()}
+            >
+              <Text style={allStyles.filterButtonText}>{saving ? 'Saving...' : 'Save Medical Record'}</Text>
+            </Pressable>
+          </View>
+        </View>
       </View>
     </Modal>
   );

@@ -3,7 +3,10 @@ import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { API_BASE_URL } from './config';
 import { uploadMedicalRecord } from './worklist';
+import type { PhysiotherapyPrescriptionData } from '../data/physiotherapy';
 import type { MedicalRecordUploadRequest, TaskDetailRecord } from '../types/worklist';
+
+export type { PhysiotherapyPrescriptionData, PhysiotherapySelectableItem } from '../data/physiotherapy';
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -266,35 +269,6 @@ export async function deleteClinicalNote(token: string, noteId: string): Promise
   } catch (error) {
     throw new Error(toFriendlyErrorMessage(error, 'Unable to delete clinical note.'));
   }
-}
-
-export interface PhysiotherapySelectableItem {
-  value: string;
-  selected: boolean;
-  displayValue: string;
-  additionalText?: string;
-}
-
-export interface PhysiotherapyPrescriptionData {
-  complaint: string;
-  medicalHistoryConditions: PhysiotherapySelectableItem[];
-  medicalHistoryNotes: string;
-  surgeryDetails: string;
-  painLevel: number;
-  painLevelNotes: string;
-  painTypes: PhysiotherapySelectableItem[];
-  painTypeNotes?: string;
-  paintTypeNotes?: string;
-  rangeOfMotion: string;
-  muscleStrength: string;
-  muscleTightness: string;
-  specialTests: string;
-  treatmentPlan: string;
-  dosDonts: string;
-  suggestedSessions: string;
-  shortTermTreatmentGoals: string;
-  longTermTreatmentGoals: string;
-  treatmentMethods: PhysiotherapySelectableItem[];
 }
 
 export interface PrescriptionDetail {

@@ -1,6 +1,8 @@
-import { View } from 'react-native';
+import { useState, type ReactNode } from 'react';
+import { Pressable, View } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { Chip, Text } from 'react-native-paper';
-import type { PhysiotherapyPrescriptionData } from '../api/records';
+import type { PhysiotherapyPrescriptionData } from '../data/physiotherapy';
 import { taskDetailsPanelStyles } from '../styles/commonStyles';
 
 interface PhysiotherapyReadOnlyViewProps {
@@ -23,17 +25,35 @@ function textOrDash(value?: string | number) {
   return `${value}`;
 }
 
-function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+function AccordionSection({
+  title,
+  hint,
+  children,
+}: {
+  title: string;
+  hint?: string;
+  children: ReactNode;
+}) {
+  const [isOpen, setIsOpen] = useState(true);
+
   return (
     <View style={taskDetailsPanelStyles.sectionCard}>
       <View style={{ padding: 12 }}>
-        <View style={taskDetailsPanelStyles.sectionHeader}>
+        <Pressable
+          onPress={() => setIsOpen((current) => !current)}
+          style={taskDetailsPanelStyles.sectionHeader}
+        >
           <View>
             <Text style={taskDetailsPanelStyles.sectionHeading}>{title}</Text>
             {hint ? <Text style={taskDetailsPanelStyles.sectionHint}>{hint}</Text> : null}
           </View>
-        </View>
-        <View style={taskDetailsPanelStyles.infoCard}>{children}</View>
+          <Feather
+            name={isOpen ? 'chevron-up' : 'chevron-down'}
+            size={18}
+            color="#666"
+          />
+        </Pressable>
+        {isOpen ? <View style={taskDetailsPanelStyles.infoCard}>{children}</View> : null}
       </View>
     </View>
   );
@@ -55,7 +75,7 @@ export function PhysiotherapyReadOnlyView({ data }: PhysiotherapyReadOnlyViewPro
 
   return (
     <View style={{ gap: 10 }}>
-      <Section title="Complaint and Medical History" hint="Patient concerns and background">
+      <AccordionSection title="Complaint and Medical History" hint="Patient concerns and background">
         <KV label="Chief Complaint" value={data.complaint} />
         <KV label="Medical History Notes" value={data.medicalHistoryNotes} />
         <KV label="Surgery Details" value={data.surgeryDetails} />
@@ -73,11 +93,11 @@ export function PhysiotherapyReadOnlyView({ data }: PhysiotherapyReadOnlyViewPro
             <Text style={taskDetailsPanelStyles.infoVal}>-</Text>
           )}
         </View>
-      </Section>
+      </AccordionSection>
 
-      <Section title="Assessment" hint="Pain and clinical findings">
+      <AccordionSection title="Assessment" hint="Pain and clinical findings">
         <KV label="Pain Level" value={`${data.painLevel ?? 0} / 10`} />
-        <KV label="Pain Notes" value={data.painTypeNotes || data.paintTypeNotes} />
+        <KV label="Pain Notes" value={data.painTypeNotes} />
         <KV label="Pain Level Notes" value={data.painLevelNotes} />
         <KV label="Range Of Motion" value={data.rangeOfMotion} />
         <KV label="Muscle Strength" value={data.muscleStrength} />
@@ -97,9 +117,9 @@ export function PhysiotherapyReadOnlyView({ data }: PhysiotherapyReadOnlyViewPro
             <Text style={taskDetailsPanelStyles.infoVal}>-</Text>
           )}
         </View>
-      </Section>
+      </AccordionSection>
 
-      <Section title="Prescribed Treatment" hint="Plan, methods, and goals">
+      <AccordionSection title="Treatment" hint="Plan, methods, and goals">
         <KV label="Treatment Plan" value={data.treatmentPlan} />
         <KV label="Suggested Sessions" value={data.suggestedSessions} />
         <KV label="Short Term Goals" value={data.shortTermTreatmentGoals} />
@@ -119,7 +139,7 @@ export function PhysiotherapyReadOnlyView({ data }: PhysiotherapyReadOnlyViewPro
             <Text style={taskDetailsPanelStyles.infoVal}>-</Text>
           )}
         </View>
-      </Section>
+      </AccordionSection>
     </View>
   );
 }

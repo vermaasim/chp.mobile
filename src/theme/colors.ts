@@ -14,6 +14,7 @@ export const themeColors = {
   warningText: '#8A4B22',
   successSurface: '#E6FAF7',
   successBorder: '#7EDDD0',
+  backDrop: '#9adedf67',
   errorSurface: '#FDEEEE',
   errorBorder: '#F3B6B6',
 } as const;

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, View } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { Card, Chip, Text } from 'react-native-paper';
 import {
   deleteClinicalNote,
@@ -21,6 +22,7 @@ import { taskDetailsPanelStyles } from '../styles/commonStyles';
 import { themeColors } from '../theme/colors';
 import type { AssignedService, TaskDetailRecord, TaskDetailRecordType } from '../types/worklist';
 import { DrawingCanvasEditor } from './DrawingCanvasEditor';
+import { GeneralRxReadOnlyView } from './GeneralRxReadOnlyView';
 import { PhysiotherapyReadOnlyView } from './PhysiotherapyReadOnlyView';
 import type { PhysiotherapyPrescriptionData } from '../api/records';
 import { getScopedCreateOptions, type RecordCreateOptionKey } from './record-flow/recordFlow';
@@ -115,7 +117,8 @@ function getStatusChipColor(status?: string) {
 }
 
 function getStatusLabel(status?: string) {
-  return status || 'Not Assigned';
+
+  return status == 'InProgress' ? 'In Progress' : status || 'Not Assigned';
 }
 
 function getRecordList(task: AssignedService, key: TaskDetailRecordType) {
@@ -162,8 +165,30 @@ function getDisplayRecordType(record: TaskDetailRecord) {
   return record.recordType || record.noteType || record.prescriptionType || 'Record';
 }
 
-function getRecordChipLabel(record: TaskDetailRecord) {
-  return record.status || getDisplayRecordType(record);
+function getRecordStatusIcon(status?: string) {
+  const normalizedStatus = (status || '').trim().toLowerCase();
+
+  if (normalizedStatus === 'final' || normalizedStatus === 'finalized') {
+    return {
+      name: 'check-circle' as const,
+      color: '#2E7D32',
+      accessibilityLabel: 'Final record',
+    };
+  }
+
+  if (normalizedStatus === 'draft') {
+    return {
+      name: 'edit-3' as const,
+      color: '#FF914D',
+      accessibilityLabel: 'Draft record',
+    };
+  }
+
+  return {
+    name: 'minus-circle' as const,
+    color: themeColors.textSecondary,
+    accessibilityLabel: 'Record status',
+  };
 }
 
 function buildPatientInfo(task: AssignedService): DetailRow[] {
@@ -233,6 +258,7 @@ export function TaskDetailsPanel({ token, taskId, refreshSeed, allowedPrescripti
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [expandedRecordActionsId, setExpandedRecordActionsId] = useState<string | null>(null);
   const [fabOptionsVisible, setFabOptionsVisible] = useState(false);
   const [activeRecordModalTemplate, setActiveRecordModalTemplate] = useState<RecordTemplateKey | null>(null);
   const [editingRecord, setEditingRecord] = useState<EditableRecordState | null>(null);
@@ -242,6 +268,7 @@ export function TaskDetailsPanel({ token, taskId, refreshSeed, allowedPrescripti
   const [previewText, setPreviewText] = useState('');
   const [previewDrawingJson, setPreviewDrawingJson] = useState<string | null>(null);
   const [previewPhysio, setPreviewPhysio] = useState<PhysiotherapyPrescriptionData | null>(null);
+  const [previewGeneralRx, setPreviewGeneralRx] = useState<Record<string, unknown> | null>(null);
   const [showUnsupportedPrescriptionNotice, setShowUnsupportedPrescriptionNotice] = useState(false);
 
   useEffect(() => {
@@ -332,12 +359,19 @@ export function TaskDetailsPanel({ token, taskId, refreshSeed, allowedPrescripti
         if (isUnsupportedPrescription) {
           setPreviewText('');
           setShowUnsupportedPrescriptionNotice(true);
+          setPreviewGeneralRx(null);
         } else if (prescriptionTemplate === 'physiotherapyRx') {
           setPreviewText('');
           setShowUnsupportedPrescriptionNotice(false);
+          setPreviewGeneralRx(null);
+        } else if (prescriptionTemplate === 'generalRx') {
+          setPreviewText('');
+          setShowUnsupportedPrescriptionNotice(false);
+          setPreviewGeneralRx(asRecord(detail.detailedPrescription));
         } else {
           setPreviewText(createPrescriptionPreviewText(detail.detailedPrescription));
           setShowUnsupportedPrescriptionNotice(false);
+          setPreviewGeneralRx(null);
         }
 
         setPreviewDrawingJson(null);
@@ -355,6 +389,7 @@ export function TaskDetailsPanel({ token, taskId, refreshSeed, allowedPrescripti
         setShowUnsupportedPrescriptionNotice(false);
         setPreviewDrawingJson(null);
         setPreviewPhysio(null);
+        setPreviewGeneralRx(null);
       }
 
       if (recordType === 'drawing') {
@@ -365,6 +400,7 @@ export function TaskDetailsPanel({ token, taskId, refreshSeed, allowedPrescripti
         setShowUnsupportedPrescriptionNotice(false);
         setPreviewDrawingJson(detail.diagramJson);
         setPreviewPhysio(null);
+        setPreviewGeneralRx(null);
       }
 
       if (recordType === 'medicalRecord') {
@@ -373,6 +409,7 @@ export function TaskDetailsPanel({ token, taskId, refreshSeed, allowedPrescripti
         setShowUnsupportedPrescriptionNotice(false);
         setPreviewDrawingJson(null);
         setPreviewPhysio(null);
+        setPreviewGeneralRx(null);
       }
 
       setPreviewVisible(true);
@@ -579,7 +616,6 @@ export function TaskDetailsPanel({ token, taskId, refreshSeed, allowedPrescripti
             <View style={taskDetailsPanelStyles.titleBlock} >
               <Text style={taskDetailsPanelStyles.title}>{patientName}</Text>
             </View>
-
             <Chip style={[taskDetailsPanelStyles.statusChip, { backgroundColor: statusColor }]} textStyle={taskDetailsPanelStyles.statusChipText}>
               {getStatusLabel(task.status)}
             </Chip>
@@ -673,9 +709,74 @@ export function TaskDetailsPanel({ token, taskId, refreshSeed, allowedPrescripti
                     !(isFinal && (recordType === 'prescription' || recordType === 'clinicalnote'));
                   const canDelete = !(isFinal && (recordType === 'prescription' || recordType === 'clinicalnote'));
                   const canDownload = recordType !== 'prescription' || isFinal;
+                  const operations: Array<{
+                    key: 'view' | 'edit' | 'delete' | 'download';
+                    label: string;
+                    icon: keyof typeof Feather.glyphMap;
+                    onPress: () => void;
+                    isPrimary?: boolean;
+                  }> = [
+                    {
+                      key: 'view',
+                      label: 'View',
+                      icon: 'eye',
+                      onPress: () => {
+                        setExpandedRecordActionsId(null);
+                        void handleViewRecord(record);
+                      },
+                    },
+                    ...(canEdit
+                      ? [
+                          {
+                            key: 'edit' as const,
+                            label: 'Edit',
+                            icon: 'edit-2' as const,
+                            onPress: () => {
+                              setExpandedRecordActionsId(null);
+                              void handleEditRecord(record);
+                            },
+                          },
+                        ]
+                      : []),
+                    ...(canDelete
+                      ? [
+                          {
+                            key: 'delete' as const,
+                            label: 'Delete',
+                            icon: 'trash-2' as const,
+                            onPress: () => {
+                              setExpandedRecordActionsId(null);
+                              handleDeleteRecord(record);
+                            },
+                          },
+                        ]
+                      : []),
+                    ...(canDownload
+                      ? [
+                          {
+                            key: 'download' as const,
+                            label: 'Download',
+                            icon: 'download' as const,
+                            onPress: () => {
+                              setExpandedRecordActionsId(null);
+                              void handleDownloadRecord(record);
+                            },
+                          },
+                        ]
+                      : []),
+                  ];
+                  const inlineOperations = operations.slice(0, 2);
+                  const overflowOperations = operations.slice(2);
+                  const recordStatusIcon = getRecordStatusIcon(record.status);
 
                   return (
-                    <View key={`${record.sourceType ?? 'record'}-${record.id}`} style={taskDetailsPanelStyles.recordCard}>
+                    <View
+                      key={`${record.sourceType ?? 'record'}-${record.id}`}
+                      style={[
+                        taskDetailsPanelStyles.recordCard,
+                        expandedRecordActionsId === record.id ? taskDetailsPanelStyles.recordCardActiveLayer : null,
+                      ]}
+                    >
                       <View style={taskDetailsPanelStyles.recordTopRow}>
                         <View style={{ flex: 1 }}>
                           <Text style={taskDetailsPanelStyles.recordTitle} numberOfLines={1}>
@@ -683,7 +784,13 @@ export function TaskDetailsPanel({ token, taskId, refreshSeed, allowedPrescripti
                           </Text>
                           <Text style={taskDetailsPanelStyles.recordMeta}>{getDisplayRecordType(record)}</Text>
                         </View>
-                        <Chip compact>{getRecordChipLabel(record)}</Chip>
+                        <View
+                          accessibilityRole="image"
+                          accessibilityLabel={recordStatusIcon.accessibilityLabel}
+                          style={taskDetailsPanelStyles.recordStatusIconWrap}
+                        >
+                          <Feather name={recordStatusIcon.name} size={16} color={recordStatusIcon.color} />
+                        </View>
                       </View>
 
                       <View style={taskDetailsPanelStyles.recordBody}>
@@ -698,30 +805,55 @@ export function TaskDetailsPanel({ token, taskId, refreshSeed, allowedPrescripti
                       </View>
 
                       <View style={taskDetailsPanelStyles.recordActions}>
-                        <Pressable style={taskDetailsPanelStyles.actionPillSecondary} onPress={() => void handleViewRecord(record)}>
-                          <Text style={taskDetailsPanelStyles.actionPillTextSecondary}>View</Text>
-                        </Pressable>
-                        <Pressable
-                          disabled={!canEdit}
-                          style={[taskDetailsPanelStyles.actionPillSecondary, !canEdit ? { opacity: 0.45 } : null]}
-                          onPress={() => void handleEditRecord(record)}
-                        >
-                          <Text style={taskDetailsPanelStyles.actionPillTextSecondary}>Edit</Text>
-                        </Pressable>
-                        <Pressable
-                          disabled={!canDelete}
-                          style={[taskDetailsPanelStyles.actionPillSecondary, !canDelete ? { opacity: 0.45 } : null]}
-                          onPress={() => handleDeleteRecord(record)}
-                        >
-                          <Text style={taskDetailsPanelStyles.actionPillTextSecondary}>Delete</Text>
-                        </Pressable>
-                        <Pressable
-                          disabled={!canDownload}
-                          style={[taskDetailsPanelStyles.actionPill, !canDownload ? { opacity: 0.45 } : null]}
-                          onPress={() => void handleDownloadRecord(record)}
-                        >
-                          <Text style={taskDetailsPanelStyles.actionPillText}>Download</Text>
-                        </Pressable>
+                        {inlineOperations.map((operation) => (
+                          <Pressable
+                            key={`${record.id}-${operation.key}`}
+                            accessibilityRole="button"
+                            accessibilityLabel={`${operation.label} record`}
+                            style={operation.isPrimary ? taskDetailsPanelStyles.actionIconButtonPrimary : taskDetailsPanelStyles.actionIconButtonSecondary}
+                            onPress={operation.onPress}
+                          >
+                            <Feather
+                              name={operation.icon}
+                              size={16}
+                              color={operation.isPrimary ? themeColors.textOnBrand : themeColors.textPrimary}
+                            />
+                          </Pressable>
+                        ))}
+                        {overflowOperations.length > 0 ? (
+                          <View style={taskDetailsPanelStyles.actionOverflowWrap}>
+                            <Pressable
+                              accessibilityRole="button"
+                              accessibilityLabel="More record actions"
+                              style={taskDetailsPanelStyles.actionIconButtonSecondary}
+                              onPress={() =>
+                                setExpandedRecordActionsId((currentValue) => (currentValue === record.id ? null : record.id))
+                              }
+                            >
+                              <Feather name="more-horizontal" size={16} color={themeColors.textPrimary} />
+                            </Pressable>
+                            {expandedRecordActionsId === record.id ? (
+                              <View style={taskDetailsPanelStyles.actionOverflowMenu}>
+                                {overflowOperations.map((operation) => (
+                                  <Pressable
+                                    key={`${record.id}-${operation.key}-menu`}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`${operation.label} record`}
+                                    style={taskDetailsPanelStyles.actionOverflowItem}
+                                    onPress={operation.onPress}
+                                  >
+                                    <Feather
+                                      name={operation.icon}
+                                      size={14}
+                                      color={operation.isPrimary ? themeColors.primary : themeColors.textPrimary}
+                                    />
+                                    <Text style={taskDetailsPanelStyles.actionOverflowItemText}>{operation.label}</Text>
+                                  </Pressable>
+                                ))}
+                              </View>
+                            ) : null}
+                          </View>
+                        ) : null}
                         {actionLoadingId === record.id ? <ActivityIndicator size="small" color={themeColors.primary} /> : null}
                       </View>
                     </View>
@@ -753,6 +885,8 @@ export function TaskDetailsPanel({ token, taskId, refreshSeed, allowedPrescripti
               <DrawingCanvasEditor initialJson={previewDrawingJson} readOnly />
             ) : previewPhysio ? (
               <PhysiotherapyReadOnlyView data={previewPhysio} />
+            ) : previewGeneralRx ? (
+              <GeneralRxReadOnlyView data={previewGeneralRx} />
             ) : (
               <Text style={taskDetailsPanelStyles.previewText}>{previewText || 'No preview available.'}</Text>
             )}

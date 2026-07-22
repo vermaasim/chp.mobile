@@ -6,18 +6,35 @@ import {
   addPrescriptionRecord,
   type ClinicalNoteDetail,
   type DrawingDetail,
-  type PhysiotherapyPrescriptionData,
   type PrescriptionDetail,
   updateClinicalNote,
   updateDrawingRecord,
   updatePrescriptionRecord,
 } from '../api/records';
-import { createDefaultPhysiotherapyPrescription } from '../data/physiotherapy';
+import {
+  createDefaultPhysiotherapyPrescription,
+  mergePhysiotherapyPrescription,
+  type PhysiotherapyPrescriptionData,
+} from '../data/physiotherapy';
+import type {
+  GeneralPrescriptionMedicine,
+  GeneralPrescriptionTest,
+  SelectableComorbidity,
+} from '../data/generalPrescription';
+import {
+  createEmptyGeneralPrescriptionMedicine,
+  createEmptyGeneralPrescriptionTest,
+  getGeneralPrescriptionDataJson,
+} from '../data/generalPrescription';
 import { allStyles } from '../styles/commonStyles';
 import type { TaskDetailRecordType } from '../types/worklist';
 import { themeColors } from '../theme/colors';
 import { DrawingCanvasEditor } from './DrawingCanvasEditor';
 import { SpeechEnabledMultilineInput } from './SpeechEnabledMultilineInput';
+import { GeneralRxForm } from './record-modals/general-rx/GeneralRxForm';
+import { buildGeneralRxPayload, hasGeneralRxContent } from './record-modals/general-rx/generalRxSave';
+import { PhysiotherapyRxForm } from './record-modals/physiotherapy-rx/PhysiotherapyRxForm';
+import { buildPhysiotherapyRxPayload, hasPhysiotherapyRxContent } from './record-modals/physiotherapy-rx/physiotherapyRxSave';
 import {
   PRESCRIPTION_TYPE_VALUE,
   type RecordTemplateKey,
@@ -29,6 +46,8 @@ export interface AddRecordModalProps {
   serviceId: string | null;
   template: RecordTemplateKey;
   editingRecord?: EditableRecordState | null;
+  generalRxBindings?: GeneralRxBindings;
+  physiotherapyRxBindings?: PhysiotherapyRxBindings;
   onClose: () => void;
   onSaved: (type: TaskDetailRecordType) => void;
 }
@@ -68,6 +87,55 @@ export interface EditableRecordState {
   prescription?: PrescriptionDetail;
   drawing?: DrawingDetail;
 }
+
+export type GeneralRxBindings = {
+  prescriptionStatus: 'Draft' | 'Final';
+  setPrescriptionStatus: (status: 'Draft' | 'Final') => void;
+  weight: string;
+  setWeight: (value: string) => void;
+  bloodPressure: string;
+  setBloodPressure: (value: string) => void;
+  temprature: string;
+  setTemprature: (value: string) => void;
+  bloodSugar: string;
+  setBloodSugar: (value: string) => void;
+  generalRxComplaint: string;
+  setGeneralRxComplaint: (value: string) => void;
+  comorbidities: SelectableComorbidity[];
+  toggleComorbidity: (value: string) => void;
+  comorbiditiesNotes: string;
+  setComorbiditiesNotes: (value: string) => void;
+  medicalAndSurgicalHistory: string;
+  setMedicalAndSurgicalHistory: (value: string) => void;
+  generalRxDiagnosis: string;
+  setGeneralRxDiagnosis: (value: string) => void;
+  currentMedicine: GeneralPrescriptionMedicine;
+  updateCurrentMedicine: (key: keyof Omit<GeneralPrescriptionMedicine, 'serialNo'>, value: string) => void;
+  generalRxMedicines: GeneralPrescriptionMedicine[];
+  setGeneralRxMedicines: (value: GeneralPrescriptionMedicine[]) => void;
+  addMedicine: () => void;
+  updateMedicine: (serialNo: number, key: keyof Omit<GeneralPrescriptionMedicine, 'serialNo'>, value: string) => void;
+  removeMedicine: (serialNo: number) => void;
+  currentTest: GeneralPrescriptionTest;
+  updateCurrentTest: (key: keyof Omit<GeneralPrescriptionTest, 'serialNo'>, value: string) => void;
+  generalRxTests: GeneralPrescriptionTest[];
+  setGeneralRxTests: (value: GeneralPrescriptionTest[]) => void;
+  addTest: () => void;
+  updateTest: (serialNo: number, key: keyof Omit<GeneralPrescriptionTest, 'serialNo'>, value: string) => void;
+  removeTest: (serialNo: number) => void;
+  generalRxAdditionalNotes: string;
+  setGeneralRxAdditionalNotes: (value: string) => void;
+  generalRxFollowupDate: string;
+  setGeneralRxFollowupDate: (value: string) => void;
+};
+
+export type PhysiotherapyRxBindings = {
+  prescriptionStatus: 'Draft' | 'Final';
+  setPrescriptionStatus: (status: 'Draft' | 'Final') => void;
+  physio: PhysiotherapyPrescriptionData;
+  updatePhysioField: <K extends keyof PhysiotherapyPrescriptionData>(key: K, value: PhysiotherapyPrescriptionData[K]) => void;
+  toggleSelectable: (key: 'medicalHistoryConditions' | 'painTypes' | 'treatmentMethods', value: string) => void;
+};
 
 const YES_NO_VALUES = ['Yes', 'No'];
 const SIDE_VALUES = ['Right', 'Left', 'Bilateral'];
@@ -204,39 +272,35 @@ export function mapEditingRecordToTemplate(editingRecord?: EditableRecordState |
   return 'generalRx';
 }
 
-function mergePhysio(base: PhysiotherapyPrescriptionData, incoming?: PhysiotherapyPrescriptionData) {
-  if (!incoming) {
-    return base;
-  }
-
-  return {
-    ...base,
-    ...incoming,
-    medicalHistoryConditions: incoming.medicalHistoryConditions ?? base.medicalHistoryConditions,
-    painTypes: incoming.painTypes ?? base.painTypes,
-    treatmentMethods: incoming.treatmentMethods ?? base.treatmentMethods,
-    painTypeNotes: incoming.painTypeNotes ?? incoming.paintTypeNotes ?? base.painTypeNotes,
-    paintTypeNotes: incoming.paintTypeNotes ?? incoming.painTypeNotes ?? base.paintTypeNotes,
-  };
-}
-
 export function BaseRecordTemplateModal({
   visible,
   token,
   serviceId,
   template,
   editingRecord,
+  generalRxBindings,
+  physiotherapyRxBindings,
   onClose,
   onSaved,
 }: AddRecordModalProps) {
+  const defaultGeneralPrescription = getGeneralPrescriptionDataJson();
   const selectedTemplate = template;
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const [generalRxComplaint, setGeneralRxComplaint] = useState('');
+  const [generalRxWeight, setGeneralRxWeight] = useState(defaultGeneralPrescription.weight);
+  const [generalRxBloodPressure, setGeneralRxBloodPressure] = useState(defaultGeneralPrescription.bloodPressure);
+  const [generalRxTemprature, setGeneralRxTemprature] = useState(defaultGeneralPrescription.temprature);
+  const [generalRxBloodSugar, setGeneralRxBloodSugar] = useState(defaultGeneralPrescription.bloodSugar);
+  const [generalRxComorbidities, setGeneralRxComorbidities] = useState<SelectableComorbidity[]>(defaultGeneralPrescription.comorbidities);
+  const [generalRxComorbiditiesNotes, setGeneralRxComorbiditiesNotes] = useState(defaultGeneralPrescription.comorbiditiesNotes);
+  const [generalRxMedicalAndSurgicalHistory, setGeneralRxMedicalAndSurgicalHistory] = useState(defaultGeneralPrescription.medicalAndSurgicalHistory);
   const [generalRxDiagnosis, setGeneralRxDiagnosis] = useState('');
-  const [generalRxMedicines, setGeneralRxMedicines] = useState('');
-  const [generalRxTests, setGeneralRxTests] = useState('');
+  const [currentMedicine, setCurrentMedicine] = useState<GeneralPrescriptionMedicine>(createEmptyGeneralPrescriptionMedicine(1));
+  const [generalRxMedicines, setGeneralRxMedicines] = useState<GeneralPrescriptionMedicine[]>(defaultGeneralPrescription.medicines);
+  const [currentTest, setCurrentTest] = useState<GeneralPrescriptionTest>(createEmptyGeneralPrescriptionTest(1));
+  const [generalRxTests, setGeneralRxTests] = useState<GeneralPrescriptionTest[]>(defaultGeneralPrescription.tests);
   const [generalRxAdditionalNotes, setGeneralRxAdditionalNotes] = useState('');
   const [generalRxFollowupDate, setGeneralRxFollowupDate] = useState('');
   const [generalPastHtn, setGeneralPastHtn] = useState<'Yes' | 'No'>('No');
@@ -317,6 +381,99 @@ export function BaseRecordTemplateModal({
   const [drawingName, setDrawingName] = useState('');
   const [drawingJson, setDrawingJson] = useState<string>(JSON.stringify({ version: 'mobile-1', background: '#ffffff', strokes: [] }));
   const isEditing = Boolean(editingRecord);
+  const activeGeneralRx: GeneralRxBindings =
+    generalRxBindings ??
+    {
+      prescriptionStatus,
+      setPrescriptionStatus,
+      weight: generalRxWeight,
+      setWeight: setGeneralRxWeight,
+      bloodPressure: generalRxBloodPressure,
+      setBloodPressure: setGeneralRxBloodPressure,
+      temprature: generalRxTemprature,
+      setTemprature: setGeneralRxTemprature,
+      bloodSugar: generalRxBloodSugar,
+      setBloodSugar: setGeneralRxBloodSugar,
+      generalRxComplaint,
+      setGeneralRxComplaint,
+      comorbidities: generalRxComorbidities,
+      toggleComorbidity: (value: string) => {
+        setGeneralRxComorbidities((previousValue) =>
+          previousValue.map((item) =>
+            item.value === value
+              ? {
+                  ...item,
+                  selected: !item.selected,
+                }
+              : item
+          )
+        );
+      },
+      comorbiditiesNotes: generalRxComorbiditiesNotes,
+      setComorbiditiesNotes: setGeneralRxComorbiditiesNotes,
+      medicalAndSurgicalHistory: generalRxMedicalAndSurgicalHistory,
+      setMedicalAndSurgicalHistory: setGeneralRxMedicalAndSurgicalHistory,
+      generalRxDiagnosis,
+      setGeneralRxDiagnosis,
+      currentMedicine,
+      updateCurrentMedicine: (key, value) => {
+        setCurrentMedicine((previousValue) => ({ ...previousValue, [key]: value }));
+      },
+      generalRxMedicines,
+      setGeneralRxMedicines,
+      addMedicine: () => {
+        if (!currentMedicine.name.trim() && !currentMedicine.dosage.trim() && !currentMedicine.duration.trim() && !currentMedicine.frequency.trim() && !currentMedicine.instructions.trim()) {
+          return;
+        }
+
+        setGeneralRxMedicines((previousValue) => [...previousValue, { ...currentMedicine, serialNo: previousValue.length + 1 }]);
+        setCurrentMedicine(createEmptyGeneralPrescriptionMedicine(1));
+      },
+      updateMedicine: (serialNo, key, value) => {
+        setGeneralRxMedicines((previousValue) =>
+          previousValue.map((item) => (item.serialNo === serialNo ? { ...item, [key]: value } : item))
+        );
+      },
+      removeMedicine: (serialNo) => {
+        setGeneralRxMedicines((previousValue) => {
+          const nextValue = previousValue
+            .filter((item) => item.serialNo !== serialNo)
+            .map((item, index) => ({ ...item, serialNo: index + 1 }));
+          return nextValue;
+        });
+      },
+      currentTest,
+      updateCurrentTest: (key, value) => {
+        setCurrentTest((previousValue) => ({ ...previousValue, [key]: value }));
+      },
+      generalRxTests,
+      setGeneralRxTests,
+      addTest: () => {
+        if (!currentTest.name.trim() && !currentTest.toBeDoneOn.trim() && !currentTest.instructions.trim()) {
+          return;
+        }
+
+        setGeneralRxTests((previousValue) => [...previousValue, { ...currentTest, serialNo: previousValue.length + 1 }]);
+        setCurrentTest(createEmptyGeneralPrescriptionTest(1));
+      },
+      updateTest: (serialNo, key, value) => {
+        setGeneralRxTests((previousValue) =>
+          previousValue.map((item) => (item.serialNo === serialNo ? { ...item, [key]: value } : item))
+        );
+      },
+      removeTest: (serialNo) => {
+        setGeneralRxTests((previousValue) => {
+          const nextValue = previousValue
+            .filter((item) => item.serialNo !== serialNo)
+            .map((item, index) => ({ ...item, serialNo: index + 1 }));
+          return nextValue;
+        });
+      },
+      generalRxAdditionalNotes,
+      setGeneralRxAdditionalNotes,
+      generalRxFollowupDate,
+      setGeneralRxFollowupDate,
+    };
 
   useEffect(() => {
     if (!visible) {
@@ -345,36 +502,80 @@ export function BaseRecordTemplateModal({
 
     setErrorMessage(null);
 
-    setGeneralRxComplaint(asText(prescriptionPayload.complaint));
-    setGeneralRxDiagnosis(asText(prescriptionPayload.diagnosis));
-    setGeneralRxMedicines(asText(prescriptionPayload.medicines));
-    setGeneralRxTests(asText(prescriptionPayload.tests));
-    setGeneralRxAdditionalNotes(asText(prescriptionPayload.additionalNotes));
-    setGeneralRxFollowupDate(asText(prescriptionPayload.followupDate));
-    setGeneralPastHtn((asText(generalPastHistory.htn) as 'Yes' | 'No') || 'No');
-    setGeneralPastDm2((asText(generalPastHistory.dm2) as 'Yes' | 'No') || 'No');
-    setGeneralPastHypothyroidism((asText(generalPastHistory.hypothyroidism) as 'Yes' | 'No') || 'No');
-    setGeneralRxHistory(asText(generalPastHistory.rxHistory));
-    setGeneralExamSide(asText(generalExamination.examSide) || 'Right');
-    setGeneralSwelling((asText(generalExamination.swelling) as 'Yes' | 'No') || 'No');
-    setGeneralMuscleWasting((asText(generalExamination.muscleWasting) as 'Yes' | 'No') || 'No');
-    setGeneralNeuroDeficit((asText(generalExamination.neuroDeficit) as 'Yes' | 'No') || 'No');
-    setGeneralNeuroDeficitType(asText(generalExamination.neuroDeficitType) || 'Motor');
-    setGeneralCapsularPattern((asText(generalExamination.capsularPattern) as 'Yes' | 'No') || 'No');
-    setGeneralMuscleTightness((asText(generalExamination.muscleTightness) as 'Yes' | 'No') || 'No');
-    setGeneralMusclesInvolvedCsv(toCsv(asStringArray(generalExamination.musclesInvolved)));
-    setGeneralTendernessCsv(toCsv(asStringArray(generalExamination.tendernessOn)));
-    setGeneralMusclePower(asText(generalExamination.musclePower) || 'Decreased due to pain');
-    setGeneralGripPinch(asText(generalExamination.gripPinch) || 'Strong');
-    setGeneralTone(asText(generalExamination.tone) || 'Normal');
-    setGeneralCoordination(asText(generalExamination.coordination) || 'Good');
-    setGeneralThumbDropTest(asText(generalSpecialTests.thumpDropTest) || 'Negative');
-    setGeneralPainfulArcTest(asText(generalSpecialTests.painfulArcTest) || 'Negative');
-    setGeneralAdl(asText(generalFunctionalAssessment.adl) || 'Independent');
-    setGeneralDifficultiesCsv(toCsv(asStringArray(generalFunctionalAssessment.difficulties)));
-    setGeneralModalitiesCsv(toCsv(asStringArray(generalManagementPlan.modalities)));
-    setGeneralExercisePlanCsv(toCsv(asStringArray(generalManagementPlan.exercisePlan)));
-    setGeneralPrognosis(asText(generalManagementPlan.prognosis));
+    const shouldHydrateInternalGeneralRx = !generalRxBindings || resolvedTemplate !== 'generalRx';
+
+    if (shouldHydrateInternalGeneralRx) {
+      setGeneralRxComplaint(asText(prescriptionPayload.complaint));
+      setGeneralRxDiagnosis(asText(prescriptionPayload.diagnosis));
+      setGeneralRxMedicines(Array.isArray(prescriptionPayload.medicines)
+        ? prescriptionPayload.medicines.map((item, index) => {
+            if (item && typeof item === 'object' && !Array.isArray(item)) {
+              const record = item as Record<string, unknown>;
+
+              return {
+                serialNo: Number(record.serialNo) || index + 1,
+                name: asText(record.name),
+                dosage: asText(record.dosage),
+                duration: asText(record.duration),
+                frequency: asText(record.frequency),
+                instructions: asText(record.instructions),
+              };
+            }
+
+            return {
+              ...createEmptyGeneralPrescriptionMedicine(index + 1),
+              name: asText(item),
+            };
+          })
+        : []);
+      setGeneralRxTests(Array.isArray(prescriptionPayload.tests)
+        ? prescriptionPayload.tests.map((item, index) => {
+            if (item && typeof item === 'object' && !Array.isArray(item)) {
+              const record = item as Record<string, unknown>;
+
+              return {
+                serialNo: Number(record.serialNo) || index + 1,
+                name: asText(record.name),
+                toBeDoneOn: asText(record.toBeDoneOn),
+                instructions: asText(record.instructions),
+              };
+            }
+
+            return {
+              ...createEmptyGeneralPrescriptionTest(index + 1),
+              name: asText(item),
+            };
+          })
+        : []);
+      setCurrentMedicine(createEmptyGeneralPrescriptionMedicine(1));
+      setCurrentTest(createEmptyGeneralPrescriptionTest(1));
+      setGeneralRxAdditionalNotes(asText(prescriptionPayload.additionalNotes));
+      setGeneralRxFollowupDate(asText(prescriptionPayload.followupDate));
+      setGeneralPastHtn((asText(generalPastHistory.htn) as 'Yes' | 'No') || 'No');
+      setGeneralPastDm2((asText(generalPastHistory.dm2) as 'Yes' | 'No') || 'No');
+      setGeneralPastHypothyroidism((asText(generalPastHistory.hypothyroidism) as 'Yes' | 'No') || 'No');
+      setGeneralRxHistory(asText(generalPastHistory.rxHistory));
+      setGeneralExamSide(asText(generalExamination.examSide) || 'Right');
+      setGeneralSwelling((asText(generalExamination.swelling) as 'Yes' | 'No') || 'No');
+      setGeneralMuscleWasting((asText(generalExamination.muscleWasting) as 'Yes' | 'No') || 'No');
+      setGeneralNeuroDeficit((asText(generalExamination.neuroDeficit) as 'Yes' | 'No') || 'No');
+      setGeneralNeuroDeficitType(asText(generalExamination.neuroDeficitType) || 'Motor');
+      setGeneralCapsularPattern((asText(generalExamination.capsularPattern) as 'Yes' | 'No') || 'No');
+      setGeneralMuscleTightness((asText(generalExamination.muscleTightness) as 'Yes' | 'No') || 'No');
+      setGeneralMusclesInvolvedCsv(toCsv(asStringArray(generalExamination.musclesInvolved)));
+      setGeneralTendernessCsv(toCsv(asStringArray(generalExamination.tendernessOn)));
+      setGeneralMusclePower(asText(generalExamination.musclePower) || 'Decreased due to pain');
+      setGeneralGripPinch(asText(generalExamination.gripPinch) || 'Strong');
+      setGeneralTone(asText(generalExamination.tone) || 'Normal');
+      setGeneralCoordination(asText(generalExamination.coordination) || 'Good');
+      setGeneralThumbDropTest(asText(generalSpecialTests.thumpDropTest) || 'Negative');
+      setGeneralPainfulArcTest(asText(generalSpecialTests.painfulArcTest) || 'Negative');
+      setGeneralAdl(asText(generalFunctionalAssessment.adl) || 'Independent');
+      setGeneralDifficultiesCsv(toCsv(asStringArray(generalFunctionalAssessment.difficulties)));
+      setGeneralModalitiesCsv(toCsv(asStringArray(generalManagementPlan.modalities)));
+      setGeneralExercisePlanCsv(toCsv(asStringArray(generalManagementPlan.exercisePlan)));
+      setGeneralPrognosis(asText(generalManagementPlan.prognosis));
+    }
 
     setGeneralNoteText(editingRecord?.clinicalNote?.noteText ?? asText(notePayload.generalNotes));
     setPhysioTxPainLevel(asText(notePayload.painLevel));
@@ -383,7 +584,7 @@ export function BaseRecordTemplateModal({
 
     setPrescriptionType(editingRecord?.prescription?.prescriptionType ?? 'PhysiotherapyPrescription');
     setPrescriptionStatus((editingRecord?.prescription?.status as 'Draft' | 'Final') ?? 'Draft');
-    const mergedPhysio = mergePhysio(createDefaultPhysiotherapyPrescription(), editingRecord?.prescription?.detailedPrescription);
+    const mergedPhysio = mergePhysiotherapyPrescription(createDefaultPhysiotherapyPrescription(), editingRecord?.prescription?.detailedPrescription);
     const treatmentMethodsSet = new Set(asStringArray(notePayload.treatmentMethods).map((item) => item.toLowerCase()));
     setPhysio({
       ...mergedPhysio,
@@ -459,6 +660,16 @@ export function BaseRecordTemplateModal({
       [key]: previousValue[key].map((item) => (item.value === value ? { ...item, selected: !item.selected } : item)),
     }));
   };
+
+  const activePhysiotherapyRx: PhysiotherapyRxBindings =
+    physiotherapyRxBindings ??
+    {
+      prescriptionStatus,
+      setPrescriptionStatus,
+      physio,
+      updatePhysioField,
+      toggleSelectable,
+    };
 
   const addLabTestsFromCsv = () => {
     const names = fromCsv(labSelectedTestsCsv);
@@ -570,103 +781,74 @@ export function BaseRecordTemplateModal({
 
     try {
       if (selectedTemplate === 'generalRx') {
-        const payload = {
-          complaint: generalRxComplaint.trim(),
-          diagnosis: generalRxDiagnosis.trim(),
-          medicines: generalRxMedicines.trim(),
-          tests: generalRxTests.trim(),
-          additionalNotes: generalRxAdditionalNotes.trim(),
-          followupDate: generalRxFollowupDate.trim(),
-          pastHistory: {
-            htn: generalPastHtn,
-            dm2: generalPastDm2,
-            hypothyroidism: generalPastHypothyroidism,
-            rxHistory: generalRxHistory.trim(),
-          },
-          examination: {
-            examSide: generalExamSide,
-            swelling: generalSwelling,
-            muscleWasting: generalMuscleWasting,
-            neuroDeficit: generalNeuroDeficit,
-            neuroDeficitType: generalNeuroDeficitType.trim(),
-            capsularPattern: generalCapsularPattern,
-            muscleTightness: generalMuscleTightness,
-            musclesInvolved: fromCsv(generalMusclesInvolvedCsv),
-            tendernessOn: fromCsv(generalTendernessCsv),
-            rom: DEFAULT_ROM_TEMPLATE,
-            musclePower: generalMusclePower.trim(),
-            gripPinch: generalGripPinch.trim(),
-            tone: generalTone.trim(),
-            coordination: generalCoordination.trim(),
-          },
-          specialTests: {
-            thumpDropTest: generalThumbDropTest.trim(),
-            painfulArcTest: generalPainfulArcTest.trim(),
-          },
-          functionalAssessment: {
-            adl: generalAdl.trim(),
-            difficulties: fromCsv(generalDifficultiesCsv),
-          },
-          managementPlan: {
-            modalities: fromCsv(generalModalitiesCsv),
-            exercisePlan: fromCsv(generalExercisePlanCsv),
-            prognosis: generalPrognosis.trim(),
-          },
-        };
+        const payload = buildGeneralRxPayload({
+          weight: activeGeneralRx.weight,
+          bloodPressure: activeGeneralRx.bloodPressure,
+          temprature: activeGeneralRx.temprature,
+          bloodSugar: activeGeneralRx.bloodSugar,
+          complaint: activeGeneralRx.generalRxComplaint,
+          comorbidities: activeGeneralRx.comorbidities,
+          comorbiditiesNotes: activeGeneralRx.comorbiditiesNotes,
+          medicalAndSurgicalHistory: activeGeneralRx.medicalAndSurgicalHistory,
+          diagnosis: activeGeneralRx.generalRxDiagnosis,
+          medicines: activeGeneralRx.generalRxMedicines,
+          tests: activeGeneralRx.generalRxTests,
+          additionalNotes: activeGeneralRx.generalRxAdditionalNotes,
+          followupDate: activeGeneralRx.generalRxFollowupDate,
+        });
 
-        const hasGeneralContent = Boolean(
-          payload.complaint ||
-            payload.diagnosis ||
-            payload.medicines ||
-            payload.tests ||
-            payload.additionalNotes ||
-            payload.followupDate ||
-            payload.pastHistory.rxHistory ||
-            payload.examination.musclesInvolved.length ||
-            payload.examination.tendernessOn.length ||
-            payload.functionalAssessment.difficulties.length ||
-            payload.managementPlan.modalities.length ||
-            payload.managementPlan.exercisePlan.length ||
-            payload.managementPlan.prognosis
-        );
-
-        if (!hasGeneralContent) {
+        if (!hasGeneralRxContent(payload)) {
           setErrorMessage('Please provide at least one General Rx field.');
           return;
         }
 
         if (isEditing && editingRecord?.id) {
-          await updatePrescriptionRecord(token, editingRecord.id, prescriptionStatus, payload);
+          await updatePrescriptionRecord(token, editingRecord.id, activeGeneralRx.prescriptionStatus, payload);
         } else {
           await addPrescriptionRecord(token, {
             serviceId,
             prescriptionType: PRESCRIPTION_TYPE_VALUE.generalRx,
-            status: prescriptionStatus,
+            status: activeGeneralRx.prescriptionStatus,
             detailedPrescription: payload,
           });
         }
       }
 
       if (selectedTemplate === 'physiotherapyRx') {
-        if (!physio.complaint.trim() && !physio.treatmentPlan.trim() && !physio.painLevelNotes.trim()) {
+        const payload = buildPhysiotherapyRxPayload({
+          complaint: activePhysiotherapyRx.physio.complaint,
+          medicalHistoryConditions: activePhysiotherapyRx.physio.medicalHistoryConditions,
+          medicalHistoryNotes: activePhysiotherapyRx.physio.medicalHistoryNotes,
+          surgeryDetails: activePhysiotherapyRx.physio.surgeryDetails,
+          painLevel: activePhysiotherapyRx.physio.painLevel,
+          painLevelNotes: activePhysiotherapyRx.physio.painLevelNotes,
+          painTypes: activePhysiotherapyRx.physio.painTypes,
+          painTypeNotes: activePhysiotherapyRx.physio.painTypeNotes,
+          rangeOfMotion: activePhysiotherapyRx.physio.rangeOfMotion,
+          muscleStrength: activePhysiotherapyRx.physio.muscleStrength,
+          muscleTightness: activePhysiotherapyRx.physio.muscleTightness,
+          specialTests: activePhysiotherapyRx.physio.specialTests,
+          treatmentPlan: activePhysiotherapyRx.physio.treatmentPlan,
+          dosDonts: activePhysiotherapyRx.physio.dosDonts,
+          suggestedSessions: activePhysiotherapyRx.physio.suggestedSessions,
+          shortTermTreatmentGoals: activePhysiotherapyRx.physio.shortTermTreatmentGoals,
+          longTermTreatmentGoals: activePhysiotherapyRx.physio.longTermTreatmentGoals,
+          treatmentMethods: activePhysiotherapyRx.physio.treatmentMethods,
+        });
+
+        if (!hasPhysiotherapyRxContent(payload)) {
           setErrorMessage('Please provide at least complaint, treatment plan, or pain notes.');
           return;
         }
 
-        const normalizedPhysio: PhysiotherapyPrescriptionData = {
-          ...physio,
-          painTypeNotes: physio.painTypeNotes ?? physio.paintTypeNotes ?? '',
-          paintTypeNotes: physio.paintTypeNotes ?? physio.painTypeNotes ?? '',
-        };
-
         if (isEditing && editingRecord?.id) {
-          await updatePrescriptionRecord(token, editingRecord.id, prescriptionStatus, normalizedPhysio as unknown as Record<string, unknown>);
+          await updatePrescriptionRecord(token, editingRecord.id, activePhysiotherapyRx.prescriptionStatus, payload);
         } else {
           await addPrescriptionRecord(token, {
             serviceId,
             prescriptionType: PRESCRIPTION_TYPE_VALUE.physiotherapyRx,
-            status: prescriptionStatus,
-            detailedPrescription: normalizedPhysio as unknown as Record<string, unknown>,
+            status: activePhysiotherapyRx.prescriptionStatus,
+            detailedPrescription: payload,
           });
         }
       }
@@ -983,286 +1165,59 @@ export function BaseRecordTemplateModal({
           </Pressable>
         </View>
 
-        <ScrollView contentContainerStyle={allStyles.modalBody}>
-          {errorMessage ? <Text style={allStyles.errorText}>{errorMessage}</Text> : null}
+        <View style={allStyles.modalContent}>
+          <ScrollView style={allStyles.modalScroll} contentContainerStyle={allStyles.modalBodyWithFooter}>
+            {errorMessage ? <Text style={allStyles.errorText}>{errorMessage}</Text> : null}
 
           {selectedTemplate === 'generalRx' ? (
-            <>
-              <Text style={allStyles.label}>Status</Text>
-              <View style={allStyles.typeRow}>
-                {STATUS_VALUES.map((status) => (
-                  <Pressable
-                    key={status}
-                    style={[allStyles.typeChip, prescriptionStatus === status ? allStyles.typeChipActive : null]}
-                    onPress={() => setPrescriptionStatus(status)}
-                  >
-                    <Text style={[allStyles.typeChipText, prescriptionStatus === status ? allStyles.typeChipTextActive : null]}>{status}</Text>
-                  </Pressable>
-                ))}
-              </View>
-
-              <Text style={allStyles.label}>Chief Complaint</Text>
-              <SpeechEnabledMultilineInput value={generalRxComplaint} onChangeText={setGeneralRxComplaint} numberOfLines={3} />
-
-              <Text style={allStyles.label}>Past History (HTN/DM2/Hypothyroidism)</Text>
-              <View style={allStyles.typeRow}>
-                {YES_NO_VALUES.map((item) => (
-                  <Pressable key={`htn-${item}`} style={[allStyles.typeChip, generalPastHtn === item ? allStyles.typeChipActive : null]} onPress={() => setGeneralPastHtn(item as 'Yes' | 'No')}>
-                    <Text style={[allStyles.typeChipText, generalPastHtn === item ? allStyles.typeChipTextActive : null]}>HTN {item}</Text>
-                  </Pressable>
-                ))}
-                {YES_NO_VALUES.map((item) => (
-                  <Pressable key={`dm2-${item}`} style={[allStyles.typeChip, generalPastDm2 === item ? allStyles.typeChipActive : null]} onPress={() => setGeneralPastDm2(item as 'Yes' | 'No')}>
-                    <Text style={[allStyles.typeChipText, generalPastDm2 === item ? allStyles.typeChipTextActive : null]}>DM2 {item}</Text>
-                  </Pressable>
-                ))}
-                {YES_NO_VALUES.map((item) => (
-                  <Pressable
-                    key={`hypo-${item}`}
-                    style={[allStyles.typeChip, generalPastHypothyroidism === item ? allStyles.typeChipActive : null]}
-                    onPress={() => setGeneralPastHypothyroidism(item as 'Yes' | 'No')}
-                  >
-                    <Text style={[allStyles.typeChipText, generalPastHypothyroidism === item ? allStyles.typeChipTextActive : null]}>Hypothyroidism {item}</Text>
-                  </Pressable>
-                ))}
-              </View>
-
-              <Text style={allStyles.label}>Rx History</Text>
-              <SpeechEnabledMultilineInput value={generalRxHistory} onChangeText={setGeneralRxHistory} numberOfLines={2} />
-
-              <Text style={allStyles.label}>Examination Side</Text>
-              <View style={allStyles.typeRow}>
-                {SIDE_VALUES.map((side) => (
-                  <Pressable key={side} style={[allStyles.typeChip, generalExamSide === side ? allStyles.typeChipActive : null]} onPress={() => setGeneralExamSide(side)}>
-                    <Text style={[allStyles.typeChipText, generalExamSide === side ? allStyles.typeChipTextActive : null]}>{side}</Text>
-                  </Pressable>
-                ))}
-              </View>
-
-              <Text style={allStyles.label}>Exam Flags</Text>
-              <View style={allStyles.typeRow}>
-                {YES_NO_VALUES.map((item) => (
-                  <Pressable key={`swelling-${item}`} style={[allStyles.typeChip, generalSwelling === item ? allStyles.typeChipActive : null]} onPress={() => setGeneralSwelling(item as 'Yes' | 'No')}>
-                    <Text style={[allStyles.typeChipText, generalSwelling === item ? allStyles.typeChipTextActive : null]}>Swelling {item}</Text>
-                  </Pressable>
-                ))}
-                {YES_NO_VALUES.map((item) => (
-                  <Pressable key={`wasting-${item}`} style={[allStyles.typeChip, generalMuscleWasting === item ? allStyles.typeChipActive : null]} onPress={() => setGeneralMuscleWasting(item as 'Yes' | 'No')}>
-                    <Text style={[allStyles.typeChipText, generalMuscleWasting === item ? allStyles.typeChipTextActive : null]}>Wasting {item}</Text>
-                  </Pressable>
-                ))}
-                {YES_NO_VALUES.map((item) => (
-                  <Pressable key={`neuro-${item}`} style={[allStyles.typeChip, generalNeuroDeficit === item ? allStyles.typeChipActive : null]} onPress={() => setGeneralNeuroDeficit(item as 'Yes' | 'No')}>
-                    <Text style={[allStyles.typeChipText, generalNeuroDeficit === item ? allStyles.typeChipTextActive : null]}>Neuro Deficit {item}</Text>
-                  </Pressable>
-                ))}
-                {YES_NO_VALUES.map((item) => (
-                  <Pressable key={`caps-${item}`} style={[allStyles.typeChip, generalCapsularPattern === item ? allStyles.typeChipActive : null]} onPress={() => setGeneralCapsularPattern(item as 'Yes' | 'No')}>
-                    <Text style={[allStyles.typeChipText, generalCapsularPattern === item ? allStyles.typeChipTextActive : null]}>Capsular Pattern {item}</Text>
-                  </Pressable>
-                ))}
-              </View>
-
-              <Text style={allStyles.label}>Neuro Deficit Type</Text>
-              <TextInput value={generalNeuroDeficitType} onChangeText={setGeneralNeuroDeficitType} style={allStyles.input} placeholder="Motor / Sensory" />
-
-              <Text style={allStyles.label}>Muscles Involved (comma separated)</Text>
-              <TextInput value={generalMusclesInvolvedCsv} onChangeText={setGeneralMusclesInvolvedCsv} style={allStyles.input} placeholder="e.g. Deltoid, Supraspinatus" />
-
-              <Text style={allStyles.label}>Tenderness On (comma separated)</Text>
-              <TextInput value={generalTendernessCsv} onChangeText={setGeneralTendernessCsv} style={allStyles.input} placeholder="e.g. AC Joint, Bicipital Groove" />
-
-              <Text style={allStyles.label}>Diagnosis</Text>
-              <SpeechEnabledMultilineInput value={generalRxDiagnosis} onChangeText={setGeneralRxDiagnosis} numberOfLines={3} />
-
-              <Text style={allStyles.label}>Medicines</Text>
-              <SpeechEnabledMultilineInput value={generalRxMedicines} onChangeText={setGeneralRxMedicines} numberOfLines={4} />
-
-              <Text style={allStyles.label}>Tests</Text>
-              <SpeechEnabledMultilineInput value={generalRxTests} onChangeText={setGeneralRxTests} numberOfLines={3} />
-
-              <Text style={allStyles.label}>Additional Notes</Text>
-              <SpeechEnabledMultilineInput value={generalRxAdditionalNotes} onChangeText={setGeneralRxAdditionalNotes} numberOfLines={3} />
-
-              <Text style={allStyles.label}>Functional Assessment (ADL)</Text>
-              <TextInput value={generalAdl} onChangeText={setGeneralAdl} style={allStyles.input} placeholder="Independent / Assisted" />
-
-              <Text style={allStyles.label}>Functional Difficulties (comma separated)</Text>
-              <TextInput value={generalDifficultiesCsv} onChangeText={setGeneralDifficultiesCsv} style={allStyles.input} placeholder="e.g. Overhead reach, Sleeping" />
-
-              <Text style={allStyles.label}>Modalities (comma separated)</Text>
-              <TextInput value={generalModalitiesCsv} onChangeText={setGeneralModalitiesCsv} style={allStyles.input} placeholder="e.g. IFT, US" />
-
-              <Text style={allStyles.label}>Exercise Plan (comma separated)</Text>
-              <TextInput value={generalExercisePlanCsv} onChangeText={setGeneralExercisePlanCsv} style={allStyles.input} placeholder="e.g. Pendulum, Wall crawl" />
-
-              <Text style={allStyles.label}>Prognosis</Text>
-              <SpeechEnabledMultilineInput value={generalPrognosis} onChangeText={setGeneralPrognosis} numberOfLines={2} />
-
-              <Text style={allStyles.label}>Follow-up Date</Text>
-              <TextInput value={generalRxFollowupDate} onChangeText={setGeneralRxFollowupDate} style={allStyles.input} placeholder="YYYY-MM-DD" />
-            </>
+            <GeneralRxForm
+              prescriptionStatus={activeGeneralRx.prescriptionStatus}
+              setPrescriptionStatus={activeGeneralRx.setPrescriptionStatus}
+              weight={activeGeneralRx.weight}
+              setWeight={activeGeneralRx.setWeight}
+              bloodPressure={activeGeneralRx.bloodPressure}
+              setBloodPressure={activeGeneralRx.setBloodPressure}
+              temprature={activeGeneralRx.temprature}
+              setTemprature={activeGeneralRx.setTemprature}
+              bloodSugar={activeGeneralRx.bloodSugar}
+              setBloodSugar={activeGeneralRx.setBloodSugar}
+              generalRxComplaint={activeGeneralRx.generalRxComplaint}
+              setGeneralRxComplaint={activeGeneralRx.setGeneralRxComplaint}
+              comorbidities={activeGeneralRx.comorbidities}
+              toggleComorbidity={activeGeneralRx.toggleComorbidity}
+              comorbiditiesNotes={activeGeneralRx.comorbiditiesNotes}
+              setComorbiditiesNotes={activeGeneralRx.setComorbiditiesNotes}
+              medicalAndSurgicalHistory={activeGeneralRx.medicalAndSurgicalHistory}
+              setMedicalAndSurgicalHistory={activeGeneralRx.setMedicalAndSurgicalHistory}
+              generalRxDiagnosis={activeGeneralRx.generalRxDiagnosis}
+              setGeneralRxDiagnosis={activeGeneralRx.setGeneralRxDiagnosis}
+              currentMedicine={activeGeneralRx.currentMedicine}
+              updateCurrentMedicine={activeGeneralRx.updateCurrentMedicine}
+              generalRxMedicines={activeGeneralRx.generalRxMedicines}
+              addMedicine={activeGeneralRx.addMedicine}
+              updateMedicine={activeGeneralRx.updateMedicine}
+              removeMedicine={activeGeneralRx.removeMedicine}
+              currentTest={activeGeneralRx.currentTest}
+              updateCurrentTest={activeGeneralRx.updateCurrentTest}
+              generalRxTests={activeGeneralRx.generalRxTests}
+              addTest={activeGeneralRx.addTest}
+              updateTest={activeGeneralRx.updateTest}
+              removeTest={activeGeneralRx.removeTest}
+              generalRxAdditionalNotes={activeGeneralRx.generalRxAdditionalNotes}
+              setGeneralRxAdditionalNotes={activeGeneralRx.setGeneralRxAdditionalNotes}
+              generalRxFollowupDate={activeGeneralRx.generalRxFollowupDate}
+              setGeneralRxFollowupDate={activeGeneralRx.setGeneralRxFollowupDate}
+            />
           ) : null}
 
           {selectedTemplate === 'physiotherapyRx' ? (
-            <>
-              <Text style={allStyles.label}>Status</Text>
-              <View style={allStyles.typeRow}>
-                <Pressable
-                  style={[allStyles.typeChip, prescriptionStatus === 'Draft' ? allStyles.typeChipActive : null]}
-                  onPress={() => setPrescriptionStatus('Draft')}
-                >
-                  <Text style={[allStyles.typeChipText, prescriptionStatus === 'Draft' ? allStyles.typeChipTextActive : null]}>Draft</Text>
-                </Pressable>
-                <Pressable
-                  style={[allStyles.typeChip, prescriptionStatus === 'Final' ? allStyles.typeChipActive : null]}
-                  onPress={() => setPrescriptionStatus('Final')}
-                >
-                  <Text style={[allStyles.typeChipText, prescriptionStatus === 'Final' ? allStyles.typeChipTextActive : null]}>Final</Text>
-                </Pressable>
-              </View>
-
-              <Text style={allStyles.label}>Chief Complaint</Text>
-              <SpeechEnabledMultilineInput
-                value={physio.complaint}
-                onChangeText={(value) => updatePhysioField('complaint', value)}
-                numberOfLines={3}
-              />
-
-              <Text style={allStyles.label}>Medical History</Text>
-              <View style={allStyles.typeRow}>
-                {physio.medicalHistoryConditions.map((item) => (
-                  <Pressable
-                    key={item.value}
-                    style={[allStyles.typeChip, item.selected ? allStyles.typeChipActive : null]}
-                    onPress={() => toggleSelectable('medicalHistoryConditions', item.value)}
-                  >
-                    <Text style={[allStyles.typeChipText, item.selected ? allStyles.typeChipTextActive : null]}>{item.displayValue}</Text>
-                  </Pressable>
-                ))}
-              </View>
-
-              <Text style={allStyles.label}>Medical History Notes</Text>
-              <SpeechEnabledMultilineInput
-                value={physio.medicalHistoryNotes}
-                onChangeText={(value) => updatePhysioField('medicalHistoryNotes', value)}
-                numberOfLines={3}
-              />
-
-              <Text style={allStyles.label}>Surgery Details</Text>
-              <SpeechEnabledMultilineInput
-                value={physio.surgeryDetails}
-                onChangeText={(value) => updatePhysioField('surgeryDetails', value)}
-                numberOfLines={3}
-              />
-
-              <Text style={allStyles.label}>Pain Level (0-10)</Text>
-              <TextInput
-                value={`${physio.painLevel}`}
-                onChangeText={(value) => updatePhysioField('painLevel', Number(value) || 0)}
-                keyboardType="numeric"
-                style={allStyles.input}
-              />
-
-              <Text style={allStyles.label}>Pain Types</Text>
-              <View style={allStyles.typeRow}>
-                {physio.painTypes.map((item) => (
-                  <Pressable
-                    key={item.value}
-                    style={[allStyles.typeChip, item.selected ? allStyles.typeChipActive : null]}
-                    onPress={() => toggleSelectable('painTypes', item.value)}
-                  >
-                    <Text style={[allStyles.typeChipText, item.selected ? allStyles.typeChipTextActive : null]}>{item.displayValue}</Text>
-                  </Pressable>
-                ))}
-              </View>
-
-              <Text style={allStyles.label}>Pain Notes</Text>
-              <SpeechEnabledMultilineInput
-                value={physio.painTypeNotes ?? physio.paintTypeNotes ?? ''}
-                onChangeText={(value) => {
-                  updatePhysioField('painTypeNotes', value);
-                  updatePhysioField('paintTypeNotes', value);
-                }}
-                numberOfLines={3}
-              />
-
-              <Text style={allStyles.label}>Range Of Motion</Text>
-              <SpeechEnabledMultilineInput
-                value={physio.rangeOfMotion}
-                onChangeText={(value) => updatePhysioField('rangeOfMotion', value)}
-                numberOfLines={2}
-              />
-
-              <Text style={allStyles.label}>Muscle Strength</Text>
-              <SpeechEnabledMultilineInput
-                value={physio.muscleStrength}
-                onChangeText={(value) => updatePhysioField('muscleStrength', value)}
-                numberOfLines={2}
-              />
-
-              <Text style={allStyles.label}>Muscle Tightness</Text>
-              <SpeechEnabledMultilineInput
-                value={physio.muscleTightness}
-                onChangeText={(value) => updatePhysioField('muscleTightness', value)}
-                numberOfLines={2}
-              />
-
-              <Text style={allStyles.label}>Special Tests</Text>
-              <SpeechEnabledMultilineInput
-                value={physio.specialTests}
-                onChangeText={(value) => updatePhysioField('specialTests', value)}
-                numberOfLines={2}
-              />
-
-              <Text style={allStyles.label}>Treatment Plan</Text>
-              <SpeechEnabledMultilineInput
-                value={physio.treatmentPlan}
-                onChangeText={(value) => updatePhysioField('treatmentPlan', value)}
-                numberOfLines={3}
-              />
-
-              <Text style={allStyles.label}>Treatment Methods</Text>
-              <View style={allStyles.typeRow}>
-                {physio.treatmentMethods.map((item) => (
-                  <Pressable
-                    key={item.value}
-                    style={[allStyles.typeChip, item.selected ? allStyles.typeChipActive : null]}
-                    onPress={() => toggleSelectable('treatmentMethods', item.value)}
-                  >
-                    <Text style={[allStyles.typeChipText, item.selected ? allStyles.typeChipTextActive : null]}>{item.displayValue}</Text>
-                  </Pressable>
-                ))}
-              </View>
-
-              <Text style={allStyles.label}>Suggested Sessions</Text>
-              <TextInput
-                value={physio.suggestedSessions}
-                onChangeText={(value) => updatePhysioField('suggestedSessions', value)}
-                style={allStyles.input}
-              />
-
-              <Text style={allStyles.label}>Short Term Goals</Text>
-              <SpeechEnabledMultilineInput
-                value={physio.shortTermTreatmentGoals}
-                onChangeText={(value) => updatePhysioField('shortTermTreatmentGoals', value)}
-                numberOfLines={3}
-              />
-
-              <Text style={allStyles.label}>Long Term Goals</Text>
-              <SpeechEnabledMultilineInput
-                value={physio.longTermTreatmentGoals}
-                onChangeText={(value) => updatePhysioField('longTermTreatmentGoals', value)}
-                numberOfLines={3}
-              />
-
-              <Text style={allStyles.label}>Do's and Don'ts</Text>
-              <SpeechEnabledMultilineInput
-                value={physio.dosDonts}
-                onChangeText={(value) => updatePhysioField('dosDonts', value)}
-                numberOfLines={3}
-              />
-            </>
+            <PhysiotherapyRxForm
+              prescriptionStatus={activePhysiotherapyRx.prescriptionStatus}
+              setPrescriptionStatus={activePhysiotherapyRx.setPrescriptionStatus}
+              physio={activePhysiotherapyRx.physio}
+              updatePhysioField={activePhysiotherapyRx.updatePhysioField}
+              toggleSelectable={activePhysiotherapyRx.toggleSelectable}
+            />
           ) : null}
 
           {selectedTemplate === 'frozenShoulderRx' ? (
@@ -1656,14 +1611,18 @@ export function BaseRecordTemplateModal({
             </>
           ) : null}
 
-          <Pressable
-            style={[allStyles.filterButton, saving ? allStyles.disabledButton : null]}
-            disabled={saving}
-            onPress={() => void saveRecord()}
-          >
-            <Text style={allStyles.filterButtonText}>{saving ? 'Saving...' : isEditing ? 'Update Record' : 'Save Record'}</Text>
-          </Pressable>
-        </ScrollView>
+          </ScrollView>
+
+          <View style={allStyles.modalFooter}>
+            <Pressable
+              style={[allStyles.filterButton, allStyles.modalFooterButton, saving ? allStyles.disabledButton : null]}
+              disabled={saving}
+              onPress={() => void saveRecord()}
+            >
+              <Text style={allStyles.filterButtonText}>{saving ? 'Saving...' : isEditing ? 'Update Record' : 'Save Record'}</Text>
+            </Pressable>
+          </View>
+        </View>
       </View>
     </Modal>
   );

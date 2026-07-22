@@ -21,7 +21,7 @@ export const allStyles = StyleSheet.create({
   },
   sectionTitle: {
     color: themeColors.textPrimary,
-    fontSize: 17,
+    fontSize: 14,
     fontWeight: '700',
   },
   sectionSubtitle: {
@@ -50,7 +50,7 @@ export const allStyles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: themeColors.border,
     backgroundColor: themeColors.surfaceMuted,
-    padding: 10,
+    padding: 1,
   },
   selectedFilterLabel: {
     color: themeColors.textOnBrand,
@@ -263,6 +263,14 @@ export const allStyles = StyleSheet.create({
     paddingHorizontal: 12,
     alignItems: 'center',
   },
+  containerCard: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: themeColors.border,
+    backgroundColor: themeColors.surfaceMuted,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
   emptyText: {
     color: themeColors.textSecondary,
     fontSize: 12,
@@ -296,9 +304,33 @@ export const allStyles = StyleSheet.create({
     padding: 14,
     gap: 8,
   },
+  modalContent: {
+    flex: 1,
+  },
+  modalScroll: {
+    flex: 1,
+  },
+  modalBodyWithFooter: {
+    padding: 14,
+    gap: 8,
+    paddingBottom: 20,
+  },
+  modalFooter: {
+    borderTopWidth: 1,
+    borderTopColor: themeColors.border,
+    backgroundColor: themeColors.surface,
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 14,
+  },
+  modalFooterButton: {
+    marginTop: 0,
+  },
   typeRow: {
     gap: 8,
     paddingVertical: 4,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
   },
   typeChip: {
     borderRadius: 999,
@@ -458,20 +490,19 @@ export const taskDetailsPanelStyles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 10,
+
     marginBottom: 12,
   },
   statusChip: {
     alignSelf: 'flex-start',
-    borderRadius: 999,
-    paddingHorizontal: 10,
+    borderRadius: 60,
+    paddingHorizontal: 6,
     paddingVertical: 6,
   },
   statusChipText: {
     color: themeColors.textOnBrand,
     fontSize: 12,
-    fontWeight: '800',
-    textTransform: 'uppercase',
+    fontWeight: '600',
     letterSpacing: 0.4,
   },
   titleBlock: {
@@ -479,7 +510,7 @@ export const taskDetailsPanelStyles = StyleSheet.create({
   },
   title: {
     color: themeColors.textPrimary,
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '800',
   },
   subTitle: {
@@ -582,22 +613,28 @@ export const taskDetailsPanelStyles = StyleSheet.create({
   },
   fabOverlay: {
     position: 'absolute',
-    right: 16,
-    bottom: 16,
-    left: 16,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
     alignItems: 'flex-end',
+    justifyContent: 'flex-end',
+    paddingRight: 16,
+    paddingBottom: 16,
   },
   fabBackdrop: {
     position: 'absolute',
-    top: -500,
-    right: -500,
-    bottom: -500,
-    left: -500,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: themeColors.backDrop,
   },
   fabOptionsWrap: {
     marginBottom: 10,
     alignItems: 'flex-end',
     gap: 8,
+    zIndex: 1,
   },
   fabOptionButton: {
     borderRadius: 999,
@@ -626,6 +663,7 @@ export const taskDetailsPanelStyles = StyleSheet.create({
     backgroundColor: themeColors.primary,
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 1,
     shadowColor: '#000000',
     shadowOpacity: 0.24,
     shadowOffset: { width: 0, height: 6 },
@@ -640,11 +678,17 @@ export const taskDetailsPanelStyles = StyleSheet.create({
     marginTop: -1,
   },
   recordCard: {
+    position: 'relative',
+    zIndex: 1,
     borderRadius: 12,
     backgroundColor: themeColors.surface,
     borderWidth: 1,
     borderColor: themeColors.border,
     padding: 12,
+  },
+  recordCardActiveLayer: {
+    zIndex: 12,
+    elevation: 8,
   },
   recordTopRow: {
     flexDirection: 'row',
@@ -670,6 +714,13 @@ export const taskDetailsPanelStyles = StyleSheet.create({
     color: themeColors.textPrimary,
     fontSize: 12,
     fontWeight: '700',
+  },
+  recordStatusIconWrap: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   recordActions: {
     marginTop: 12,
@@ -706,6 +757,56 @@ export const taskDetailsPanelStyles = StyleSheet.create({
     color: themeColors.textPrimary,
     fontSize: 12,
     fontWeight: '700',
+  },
+  actionIconButtonSecondary: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: themeColors.surface,
+    borderWidth: 1,
+    borderColor: themeColors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionIconButtonPrimary: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: themeColors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionOverflowWrap: {
+    position: 'relative',
+  },
+  actionOverflowMenu: {
+    position: 'absolute',
+    right: 0,
+    top: 38,
+    zIndex: 5,
+    minWidth: 132,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: themeColors.border,
+    backgroundColor: themeColors.surface,
+    paddingVertical: 4,
+    shadowColor: '#000000',
+    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  actionOverflowItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  actionOverflowItemText: {
+    color: themeColors.textPrimary,
+    fontSize: 12,
+    fontWeight: '600',
   },
   emptyState: {
     borderRadius: 12,
@@ -755,4 +856,4 @@ export const taskDetailsPanelStyles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 20,
   },
-});
+})
