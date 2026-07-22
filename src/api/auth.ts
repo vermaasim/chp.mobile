@@ -8,8 +8,17 @@ const apiClient = axios.create({
     'Content-Type': 'application/json',
     Accept: 'application/json',
   },
-  //timeout: 15000,
+  timeout: 20000,
 });
+
+function logAuthTiming(step: string, startedAt: number) {
+  if (!__DEV__) {
+    return;
+  }
+
+  const elapsedMs = Date.now() - startedAt;
+  console.info(`[auth-timing] ${step} took ${elapsedMs}ms`);
+}
 
 function toFriendlyErrorMessage(error: unknown) {
   if (!axios.isAxiosError(error)) {
@@ -59,17 +68,22 @@ export function setAuthToken(token: string | null) {
 }
 
 export async function login(payload: MobileLoginRequest): Promise<LoginResponse> {
+  const startedAt = Date.now();
+
   try {
     const response = await apiClient.post<LoginResponse>('/api/account/login', {
       userName: payload.userName,
       password: payload.password,
     });
+    logAuthTiming('POST /api/account/login', startedAt);
     return response.data;
   } catch (error) {
     // Fallback for environments still using the dedicated mobile-login endpoint.
     if (axios.isAxiosError(error) && error.response?.status === 404) {
       try {
+        const fallbackStartedAt = Date.now();
         const mobileResponse = await apiClient.post<LoginResponse>('/api/account/mobile-login', payload);
+        logAuthTiming('POST /api/account/mobile-login', fallbackStartedAt);
         return mobileResponse.data;
       } catch (mobileLoginError) {
         throw new Error(toFriendlyErrorMessage(mobileLoginError));
@@ -81,8 +95,11 @@ export async function login(payload: MobileLoginRequest): Promise<LoginResponse>
 }
 
 export async function loadMyFacilities(): Promise<Facility[]> {
+  const startedAt = Date.now();
+
   try {
     const response = await apiClient.get<Facility[]>('/api/facility/my');
+    logAuthTiming('GET /api/facility/my', startedAt);
     return response.data;
   } catch (error) {
     throw new Error(toFriendlyErrorMessage(error));

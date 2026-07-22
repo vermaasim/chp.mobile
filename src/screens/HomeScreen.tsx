@@ -9,6 +9,7 @@ import { InfoPlaceholder } from '../components/InfoPlaceholder';
 import { MyTasksPanel } from '../components/MyTasksPanel';
 import { ProfileMenu } from '../components/ProfileMenu';
 import { SideMenu, type SideMenuItem } from '../components/SideMenu';
+import { TaskDetailsPanel } from '../components/TaskDetailsPanel';
 import { themeColors } from '../theme/colors';
 import type { AuthSession } from '../types/auth';
 
@@ -22,7 +23,7 @@ function buildDisplayName(user: AuthSession) {
   return [user.firstName, user.lastName].filter(Boolean).join(' ');
 }
 
-type PageKey = 'Home' | 'My Tasks' | 'My Attendance';
+type PageKey = 'Home' | 'My Tasks' | 'My Attendance' | 'Task Details';
 
 const ATTENDANCE_RADIUS_METERS = 100;
 const LOCATION_REFRESH_INTERVAL_MS = 30000;
@@ -33,41 +34,62 @@ const menuItems: SideMenuItem[] = [
   { key: 'My Attendance', label: 'My Attendance' },
 ];
 
+function getBreadcrumbLabel(page: PageKey) {
+  return page;
+}
+
+function getAllowedPrescriptionTypes(user: AuthSession) {
+  return user.selectedFacility?.licenseDetails?.allowedPrescriptions;
+}
+
 export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProps) {
   const displayName = buildDisplayName(user);
   const insets = useSafeAreaInsets();
-  const [activePage, setActivePage] = useState<PageKey>('Home');
+  const [pageStack, setPageStack] = useState<PageKey[]>(['Home']);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [isMenuVisible, setIsMenuVisible] = useState(false);
   const [isProfileMenuVisible, setIsProfileMenuVisible] = useState(false);
   const [isFacilityModalVisible, setIsFacilityModalVisible] = useState(false);
 
-  const pageTitle = useMemo(() => {
-    if (activePage === 'My Tasks') {
-      return 'My Tasks';
+  const activePage = pageStack[pageStack.length - 1];
+
+  const breadcrumbText = useMemo(() => pageStack.map(getBreadcrumbLabel).join(' / '), [pageStack]);
+  const isBackDisabled = pageStack.length <= 1;
+
+  const navigateRootPage = (page: Exclude<PageKey, 'Task Details'>) => {
+    if (page === 'Home') {
+      setPageStack(['Home']);
+      setSelectedTaskId(null);
+      return;
     }
 
-    if (activePage === 'My Attendance') {
-      return 'My Attendance';
+    setPageStack(['Home', page]);
+  };
+
+  const goBack = () => {
+    if (isBackDisabled) {
+      return;
     }
 
-    return 'Home';
-  }, [activePage]);
+    setPageStack((previousStack) => previousStack.slice(0, -1));
+  };
 
   const handleSelectMenuItem = (key: string) => {
-    setActivePage(key as PageKey);
+    navigateRootPage(key as Exclude<PageKey, 'Task Details'>);
     setIsMenuVisible(false);
   };
 
   const goToMyAttendance = () => {
-    setActivePage('My Attendance');
+    navigateRootPage('My Attendance');
   };
 
   const goToMyTasks = () => {
-    setActivePage('My Tasks');
+    navigateRootPage('My Tasks');
   }
 
-  const goToHome = () => {
-    setActivePage('Home');
+  const openTaskDetails = (taskId: string) => {
+    setSelectedTaskId(taskId);
+    setPageStack(['Home', 'My Tasks', 'Task Details']);
   };
 
   const renderPageContent = () => {
@@ -76,7 +98,21 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
         return <InfoPlaceholder title="My Tasks" />;
       }
 
-      return <MyTasksPanel token={user.token} facilityId={user.selectedFacility.id} />;
+      return <MyTasksPanel token={user.token} facilityId={user.selectedFacility.id} onOpenTaskDetails={openTaskDetails} />;
+    }
+
+    if (activePage === 'Task Details') {
+      if (!selectedTaskId) {
+        return <InfoPlaceholder title="Task Details" />;
+      }
+
+      return (
+        <TaskDetailsPanel
+          token={user.token}
+          taskId={selectedTaskId}
+          allowedPrescriptionTypes={getAllowedPrescriptionTypes(user)}
+        />
+      );
     }
 
     if (activePage === 'My Attendance') {
@@ -109,7 +145,7 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
       );
     }
 
-    return <InfoPlaceholder title={pageTitle} />;
+    return <InfoPlaceholder title={activePage} />;
   };
 
   return (
@@ -131,17 +167,15 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
 
         <View style={styles.fixedHeaderWrap}>
           <View style={styles.breadcrumbWrap}>
-            {activePage === "Home" ? (
-              <Text style={styles.breadcrumbCurrent}>Home</Text>
-            ) : (
-              <>
-                <Pressable accessibilityRole="button" onPress={goToHome}>
-                  <Text style={styles.breadcrumbLink}>Home</Text>
-                </Pressable>
-                <Text style={styles.breadcrumbSeparator}> / </Text>
-                <Text style={styles.breadcrumbCurrent}>{pageTitle}</Text>
-              </>
-            )}
+            <IconButton
+              icon="arrow-left"
+              size={18}
+              mode="contained-tonal"
+              disabled={isBackDisabled}
+              onPress={goBack}
+              style={styles.backButton}
+            />
+            <Text numberOfLines={1} style={styles.breadcrumbCurrent}>{breadcrumbText}</Text>
           </View>
         </View>
 
@@ -203,6 +237,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 8,
     justifyContent: 'flex-start',
+    gap: 6,
+  },
+  backButton: {
+    margin: 0,
   },
   breadcrumbLink: {
     color: themeColors.primary,

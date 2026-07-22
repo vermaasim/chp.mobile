@@ -107,3 +107,10 @@ export async function clearDeviceKeyPair() {
 
   await SecureStore.deleteItemAsync(DEVICE_KEYPAIR_STORAGE_KEY);
 }
+
+// Pre-generate and cache the keypair early so first login does not block on RSA generation.
+export function warmUpDeviceKeyPair() {
+  void getOrCreatePublicEncryptionKey().catch(() => {
+    // Warm-up is best-effort and should not surface errors to users.
+  });
+}

@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import * as Application from 'expo-application';
 import * as Device from 'expo-device';
 import { getOrCreateDeviceAppId } from '../storage/deviceIdentity';
+import { getOrCreatePublicEncryptionKey } from '../storage/deviceKeys';
 import type { MobileLoginDeviceInfo } from '../types/auth';
 
 const FALLBACK_APP_VERSION = '1.0.0';
@@ -35,6 +36,26 @@ export async function buildMobileLoginDeviceInfo(
 ): Promise<MobileLoginDeviceInfo> {
   const deviceId = await getDeviceId();
   const appId = await getOrCreateDeviceAppId();
+
+  return {
+    appId,
+    osType: getOsType(),
+    version: Application.nativeApplicationVersion ?? FALLBACK_APP_VERSION,
+    publicEncryptionKey,
+    deviceId: deviceId ?? undefined,
+    deviceModel: Device.modelName ?? undefined,
+    deviceManufacturer: Device.manufacturer ?? undefined,
+    osVersion: Device.osVersion ?? undefined,
+    appBuildNumber: Application.nativeBuildVersion ?? undefined,
+  };
+}
+
+export async function buildMobileLoginDeviceInfoWithKeyLookup(): Promise<MobileLoginDeviceInfo> {
+  const [publicEncryptionKey, deviceId, appId] = await Promise.all([
+    getOrCreatePublicEncryptionKey(),
+    getDeviceId(),
+    getOrCreateDeviceAppId(),
+  ]);
 
   return {
     appId,

@@ -27,6 +27,9 @@ export interface Facility {
   addressLine2?: string | null;
   city?: string | null;
   logo?: string | null;
+  licenseDetails?: {
+    allowedPrescriptions?: string[];
+  };
 }
 
 export interface LoginResponse {

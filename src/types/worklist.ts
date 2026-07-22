@@ -17,6 +17,37 @@ export interface AssignedService {
   visitId?: string;
   visitDisplayId?: string;
   scheduledStartDateTime?: string;
+  createdOn?: string;
+  referredBy?: string;
+  assignedToMobileNo?: string;
+  assignedToEmailId?: string;
+  patientMRN?: string;
+  patientPhoto?: string;
+  prescriptions?: TaskDetailRecord[];
+  clinicalNotes?: TaskDetailRecord[];
+  medicalRecords?: TaskDetailRecord[];
+  drawings?: TaskDetailRecord[];
+  records?: TaskDetailRecord[];
+}
+
+export type TaskDetailRecordType = 'prescription' | 'clinicalnote' | 'medicalRecord' | 'drawing' | 'Drawing';
+
+export interface TaskDetailRecord {
+  id: string;
+  displayId?: string;
+  name?: string;
+  status?: string;
+  recordType?: string;
+  noteType?: string;
+  prescriptionType?: string;
+  sourceType?: TaskDetailRecordType | string;
+  createdByUserName?: string;
+  lastModifiedByUserName?: string;
+  createdOn?: string;
+  lastModifiedOn?: string;
+  dateOfUpload?: string;
+  recordDateTime?: string;
+  diagramId?: string;
 }
 
 export interface AssignedServiceFilter {

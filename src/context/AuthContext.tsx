@@ -1,10 +1,10 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { loadMyFacilities, login, setAuthToken } from '../api/auth';
 import { setAttendanceAuthToken } from '../api/attendance';
-import { getOrCreatePublicEncryptionKey } from '../storage/deviceKeys';
+import { warmUpDeviceKeyPair } from '../storage/deviceKeys';
 import { clearSession, loadSession, saveSession } from '../storage/session';
 import type { AuthSession, Facility } from '../types/auth';
-import { buildMobileLoginDeviceInfo } from '../utils/deviceInfo';
+import { buildMobileLoginDeviceInfoWithKeyLookup } from '../utils/deviceInfo';
 
 interface AuthContextValue {
   currentUser: AuthSession | null;
@@ -40,6 +40,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    warmUpDeviceKeyPair();
+
     let isMounted = true;
 
     const bootstrapSession = async () => {
@@ -87,8 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setErrorMessage(null);
 
     try {
-      const publicEncryptionKey = await getOrCreatePublicEncryptionKey();
-      const deviceInfo = await buildMobileLoginDeviceInfo(publicEncryptionKey);
+      const deviceInfo = await buildMobileLoginDeviceInfoWithKeyLookup();
       const authenticatedUser = await login({
         userName: email,
         password,

@@ -7,24 +7,27 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { canStartService, loadMyAssignedServices, loadServiceDetails, updateServiceStatus, uploadMedicalRecord } from '../api/worklist';
+import { SpeechEnabledMultilineInput } from './SpeechEnabledMultilineInput';
+import { canStartService, loadMyAssignedServices, updateServiceStatus, uploadMedicalRecord } from '../api/worklist';
+import { ContextActionBar, type ContextActionBarAction } from './ContextActionBar';
 import {
   loadWorklistDateFilterPreference,
   saveWorklistDateFilterPreference,
   type WorklistDateFilterOption,
 } from '../storage/worklistFilter';
+import { allStyles } from '../styles/commonStyles';
 import { themeColors } from '../theme/colors';
 import type { AssignedService } from '../types/worklist';
 
 interface MyTasksPanelProps {
   token: string;
   facilityId: string;
+  onOpenTaskDetails: (taskId: string) => void;
 }
 
 const RECORD_TYPES = ['Document', 'LabReport', 'XRay', 'Photo', 'Video', 'Other'];
@@ -120,7 +123,7 @@ function statusColor(status: string) {
   return '#5C7476';
 }
 
-export function MyTasksPanel({ token, facilityId }: MyTasksPanelProps) {
+export function MyTasksPanel({ token, facilityId, onOpenTaskDetails }: MyTasksPanelProps) {
   const initialRange = useMemo(() => getRangeForOption('today'), []);
   const [fromDate, setFromDate] = useState(initialRange.fromDate);
   const [toDate, setToDate] = useState(initialRange.toDate);
@@ -132,9 +135,7 @@ export function MyTasksPanel({ token, facilityId }: MyTasksPanelProps) {
   const [tasks, setTasks] = useState<AssignedService[]>([]);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [detailsVisible, setDetailsVisible] = useState(false);
-  const [detailsLoading, setDetailsLoading] = useState(false);
-  const [selectedTask, setSelectedTask] = useState<AssignedService | null>(null);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
 
   const [recordModalVisible, setRecordModalVisible] = useState(false);
   const [recordTaskId, setRecordTaskId] = useState<string | null>(null);
@@ -165,6 +166,13 @@ export function MyTasksPanel({ token, facilityId }: MyTasksPanelProps) {
 
     return new Date();
   }, [datePickerTarget, draftCustomFromDate, draftCustomToDate, recordDate]);
+
+  const selectedTasks = useMemo(
+    () => tasks.filter((task) => selectedTaskIds.includes(task.id)),
+    [tasks, selectedTaskIds]
+  );
+  const isSelectionMode = selectedTaskIds.length > 0;
+  const singleSelectedTask = selectedTasks.length === 1 ? selectedTasks[0] : null;
 
   const applyPickedDate = (target: 'dialogFrom' | 'dialogTo' | 'record', selectedDate: Date) => {
     const nextValue = formatDateInput(selectedDate);
@@ -226,18 +234,64 @@ export function MyTasksPanel({ token, facilityId }: MyTasksPanelProps) {
     }
   };
 
-  const handleViewTask = async (task: AssignedService) => {
-    setSelectedTask(task);
-    setDetailsVisible(true);
-    setDetailsLoading(true);
+  const clearSelection = () => {
+    setSelectedTaskIds([]);
+  };
+
+  const toggleTaskSelection = (taskId: string) => {
+    setSelectedTaskIds((previousValue) =>
+      previousValue.includes(taskId)
+        ? previousValue.filter((selectedId) => selectedId !== taskId)
+        : [...previousValue, taskId]
+    );
+  };
+
+  const handleTaskPress = (task: AssignedService) => {
+    if (isSelectionMode) {
+      toggleTaskSelection(task.id);
+      return;
+    }
+
+    onOpenTaskDetails(task.id);
+  };
+
+  const handleTaskLongPress = (task: AssignedService) => {
+    setSelectedTaskIds((previousValue) =>
+      previousValue.includes(task.id) ? previousValue : [...previousValue, task.id]
+    );
+  };
+
+  const runBulkStatusUpdate = async (
+    nextStatusForTask: (task: AssignedService) => 'NotStarted' | 'InProgress' | 'Completed' | null,
+    failureMessage: string
+  ) => {
+    const tasksToUpdate = selectedTasks
+      .map((task) => ({ task, nextStatus: nextStatusForTask(task) }))
+      .filter((item): item is { task: AssignedService; nextStatus: 'NotStarted' | 'InProgress' | 'Completed' } => item.nextStatus !== null);
+
+    if (tasksToUpdate.length === 0) {
+      return;
+    }
+
+    setLoading(true);
+    setErrorMessage(null);
 
     try {
-      const detailedTask = await loadServiceDetails(token, task.id);
-      setSelectedTask(detailedTask);
+      await Promise.all(
+        tasksToUpdate.map(({ task, nextStatus }) =>
+          updateServiceStatus(token, {
+            serviceId: task.id,
+            status: nextStatus,
+          })
+        )
+      );
+
+      clearSelection();
+      await refreshTasks();
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Unable to load service details.');
+      setErrorMessage(error instanceof Error ? error.message : failureMessage);
     } finally {
-      setDetailsLoading(false);
+      setLoading(false);
     }
   };
 
@@ -247,6 +301,7 @@ export function MyTasksPanel({ token, facilityId }: MyTasksPanelProps) {
         serviceId: task.id,
         status: 'InProgress',
       });
+      clearSelection();
       await refreshTasks();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to start service.');
@@ -260,6 +315,7 @@ export function MyTasksPanel({ token, facilityId }: MyTasksPanelProps) {
         status: 'Completed',
       });
 
+      clearSelection();
       await refreshTasks();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to complete service.');
@@ -279,6 +335,7 @@ export function MyTasksPanel({ token, facilityId }: MyTasksPanelProps) {
         status: nextStatus,
       });
 
+      clearSelection();
       await refreshTasks();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to undo service status.');
@@ -347,6 +404,7 @@ export function MyTasksPanel({ token, facilityId }: MyTasksPanelProps) {
   };
 
   const openAddMedicalRecord = (task: AssignedService) => {
+    clearSelection();
     setRecordTaskId(task.id);
     setRecordName('');
     setRecordDate(formatDateInput(new Date()));
@@ -391,6 +449,78 @@ export function MyTasksPanel({ token, facilityId }: MyTasksPanelProps) {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    setSelectedTaskIds((previousValue) => previousValue.filter((taskId) => tasks.some((task) => task.id === taskId)));
+  }, [tasks]);
+
+  const contextActions = useMemo<ContextActionBarAction[]>(() => {
+    if (!selectedTasks.length) {
+      return [];
+    }
+
+    const canShowDetails = selectedTasks.length === 1;
+    const canShowAddRecord = selectedTasks.length === 1 && selectedTasks[0].status === 'InProgress';
+    const canBulkStart = selectedTasks.every((task) => canStartService(task.status));
+    const canBulkComplete = selectedTasks.every((task) => task.status === 'InProgress');
+    const canBulkUndo = selectedTasks.every((task) => task.status === 'InProgress' || task.status === 'Completed');
+
+    return [
+      canShowDetails
+        ? {
+            key: 'details',
+            label: 'Details',
+            icon: 'info',
+            onPress: () => {
+              if (singleSelectedTask) {
+                clearSelection();
+                onOpenTaskDetails(singleSelectedTask.id);
+              }
+            },
+          }
+        : null,
+      canShowAddRecord
+        ? {
+            key: 'add-record',
+            label: 'Add Record',
+            icon: 'file-plus',
+            onPress: () => {
+              if (singleSelectedTask) {
+                openAddMedicalRecord(singleSelectedTask);
+              }
+            },
+          }
+        : null,
+      canBulkStart
+        ? {
+            key: 'start',
+            label: 'Start',
+            icon: 'play',
+            onPress: () => void runBulkStatusUpdate(() => 'InProgress', 'Unable to start service.'),
+          }
+        : null,
+      canBulkComplete
+        ? {
+            key: 'complete',
+            label: 'Complete',
+            icon: 'check-circle',
+            onPress: () => void runBulkStatusUpdate(() => 'Completed', 'Unable to complete service.'),
+          }
+        : null,
+      canBulkUndo
+        ? {
+            key: 'undo',
+            label: 'Undo',
+            icon: 'corner-up-left',
+            onPress: () =>
+              void runBulkStatusUpdate(
+                (task) => (task.status === 'Completed' ? 'InProgress' : task.status === 'InProgress' ? 'NotStarted' : null),
+                'Unable to undo service status.'
+              ),
+          }
+        : null,
+    ].filter((action): action is ContextActionBarAction => action !== null);
+  }, [onOpenTaskDetails, selectedTasks, singleSelectedTask]);
 
   const selectRecordFile = async () => {
     const result = await DocumentPicker.getDocumentAsync({
@@ -515,21 +645,29 @@ export function MyTasksPanel({ token, facilityId }: MyTasksPanelProps) {
 
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
         {tasks.map((task) => {
-          const canStart = canStartService(task.status);
-          const inProgress = task.status === 'InProgress';
-          const canUndo = task.status === 'InProgress' || task.status === 'Completed';
-          const canAdvanceStatus = task.status === 'NotStarted' || task.status === 'InProgress';
-          const advanceIconName = task.status === 'InProgress' ? 'check-circle' : 'play';
-          const advanceStatusLabel = task.status === 'InProgress' ? 'Complete' : 'Start';
+          const isSelected = selectedTaskIds.includes(task.id);
 
           return (
-            <View key={task.id} style={styles.taskCard}>
+            <Pressable
+              key={task.id}
+              accessibilityRole="button"
+              onPress={() => handleTaskPress(task)}
+              onLongPress={() => handleTaskLongPress(task)}
+              style={[styles.taskCard, isSelected ? styles.taskCardSelected : null]}
+            >
               <View style={styles.taskTopRow}>
-                <Text style={styles.taskName}>{formatPatientName(task) || 'Unnamed Patient'}</Text>
+                <View style={styles.taskNameWrap}>
+                  {isSelectionMode ? (
+                    <View style={[styles.selectionIndicator, isSelected ? styles.selectionIndicatorSelected : null]}>
+                      {isSelected ? <Feather name="check" size={12} color={themeColors.textOnBrand} /> : null}
+                    </View>
+                  ) : null}
+                  <Text style={styles.taskName}>{formatPatientName(task) || 'Unnamed Patient'}</Text>
+                </View>
                 <View style={styles.statusActionsWrap}>
                   <Text style={[styles.statusBadge, { color: statusColor(task.status) }]}>{task.status}</Text>
 
-                  {canAdvanceStatus ? (
+                  {/* {!isSelectionMode && canAdvanceStatus ? (
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel={advanceStatusLabel}
@@ -547,9 +685,9 @@ export function MyTasksPanel({ token, facilityId }: MyTasksPanelProps) {
                     >
                       <Feather name={advanceIconName} size={14} color={themeColors.textOnBrand} />
                     </Pressable>
-                  ) : null}
+                  ) : null} */}
 
-                  {canUndo ? (
+                  {/* {!isSelectionMode && canUndo ? (
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel="Undo"
@@ -558,7 +696,7 @@ export function MyTasksPanel({ token, facilityId }: MyTasksPanelProps) {
                     >
                       <Feather name="corner-up-left" size={14} color={themeColors.textPrimary} />
                     </Pressable>
-                  ) : null}
+                  ) : null} */}
                 </View>
               </View>
 
@@ -566,7 +704,7 @@ export function MyTasksPanel({ token, facilityId }: MyTasksPanelProps) {
               <Text style={styles.taskMeta}>Task ID: {task.displayId || task.id}</Text>
               <Text style={styles.taskMeta}>Scheduled: {task.scheduledStartDateTime || '-'}</Text>
 
-              <View style={styles.taskActions}>
+              {/* {!isSelectionMode ? <View style={styles.taskActions}>
                 <Pressable style={styles.actionButton} onPress={() => void handleViewTask(task)}>
                   <Feather name="info" size={14} color={themeColors.textOnBrand} />
                   <Text style={styles.actionButtonText}>Details</Text>
@@ -580,8 +718,8 @@ export function MyTasksPanel({ token, facilityId }: MyTasksPanelProps) {
                   <Feather name="file-plus" size={14} color={themeColors.textPrimary} />
                   <Text style={styles.secondaryActionButtonText}>Add Record</Text>
                 </Pressable>
-              </View>
-            </View>
+              </View> : null} */}
+            </Pressable>
           );
         })}
 
@@ -591,33 +729,6 @@ export function MyTasksPanel({ token, facilityId }: MyTasksPanelProps) {
           </View>
         ) : null}
       </ScrollView>
-
-      <Modal animationType="slide" visible={detailsVisible} onRequestClose={() => setDetailsVisible(false)}>
-        <View style={styles.modalScreen}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Service Details</Text>
-            <Pressable onPress={() => setDetailsVisible(false)}>
-              <Text style={styles.closeText}>Close</Text>
-            </Pressable>
-          </View>
-
-          {detailsLoading ? (
-            <ActivityIndicator size="small" color={themeColors.primary} />
-          ) : (
-            <ScrollView contentContainerStyle={styles.modalBody}>
-              <Text style={styles.detailRow}>Patient: {selectedTask ? formatPatientName(selectedTask) : '-'}</Text>
-              <Text style={styles.detailRow}>Service: {selectedTask?.serviceName || '-'}</Text>
-              <Text style={styles.detailRow}>Status: {selectedTask?.status || '-'}</Text>
-              <Text style={styles.detailRow}>Task ID: {selectedTask?.displayId || selectedTask?.id || '-'}</Text>
-              <Text style={styles.detailRow}>Visit: {selectedTask?.visitDisplayId || '-'}</Text>
-              <Text style={styles.detailRow}>Assigned To: {selectedTask?.assignedToUserName || '-'}</Text>
-              <Text style={styles.detailRow}>Patient Phone: {selectedTask?.patientMobileNo || '-'}</Text>
-              <Text style={styles.detailRow}>Patient Email: {selectedTask?.patientEmailId || '-'}</Text>
-              <Text style={styles.detailRow}>Scheduled: {selectedTask?.scheduledStartDateTime || '-'}</Text>
-            </ScrollView>
-          )}
-        </View>
-      </Modal>
 
       <Modal animationType="slide" visible={recordModalVisible} onRequestClose={() => setRecordModalVisible(false)}>
         <View style={styles.modalScreen}>
@@ -652,12 +763,10 @@ export function MyTasksPanel({ token, facilityId }: MyTasksPanelProps) {
             </ScrollView>
 
             <Text style={styles.label}>Description</Text>
-            <TextInput
+            <SpeechEnabledMultilineInput
               value={recordDescription}
               onChangeText={setRecordDescription}
-              multiline
               numberOfLines={4}
-              style={[styles.input, styles.textArea]}
               placeholder="Optional notes"
             />
 
@@ -712,417 +821,15 @@ export function MyTasksPanel({ token, facilityId }: MyTasksPanelProps) {
           </View>
         </Modal>
       ) : null}
+
+      <ContextActionBar
+        visible={isSelectionMode}
+        selectedCount={selectedTaskIds.length}
+        actions={contextActions}
+        onClearSelection={clearSelection}
+      />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    borderRadius: 6,
-    backgroundColor: themeColors.surface,
-    borderWidth: 2,
-    borderColor: themeColors.primary,
-    padding: 0,
-    minHeight: 320,
-  },
-  filterCard: {
-    borderTopEndRadius: 4,
-    borderTopStartRadius: 4,
-    borderWidth: 1,
-    borderColor: themeColors.primary,
-    backgroundColor: themeColors.primary,
-    padding: 0,
-    marginBottom: 10,
-  },
-  sectionTitle: {
-    color: themeColors.textPrimary,
-    fontSize: 17,
-    fontWeight: '700',
-  },
-  sectionSubtitle: {
-    color: themeColors.textSecondary,
-    fontSize: 12,
-    marginBottom: 10,
-  },
-  selectedFilterSummary: {
-    borderRadius: 10,
-    borderColor: themeColors.border,
-    backgroundColor: themeColors.primary,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  accordionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  accordionHeaderTextWrap: {
-    flex: 1,
-  },
-  accordionContent: {
-    marginTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: themeColors.border,
-    backgroundColor: themeColors.surfaceMuted,
-    padding: 10,
-  },
-  selectedFilterLabel: {
-    color: themeColors.textOnBrand,
-    fontSize: 11,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-  },
-  selectedFilterValue: {
-    color: themeColors.textPrimary,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  selectedFilterDates: {
-    color: themeColors.textOnBrand,
-    fontSize: 12,
-  },
-  dateRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  dateField: {
-    flex: 1,
-  },
-  label: {
-    color: themeColors.textPrimary,
-    fontSize: 12,
-    fontWeight: '700',
-    marginBottom: 6,
-    marginTop: 8,
-  },
-  input: {
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: themeColors.border,
-    backgroundColor: themeColors.surface,
-    color: themeColors.textPrimary,
-    paddingHorizontal: 10,
-    paddingVertical: 10,
-    fontSize: 13,
-  },
-  datePickerButton: {
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: themeColors.border,
-    backgroundColor: themeColors.surface,
-    paddingHorizontal: 10,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  datePickerText: {
-    color: themeColors.textPrimary,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  filterButton: {
-    marginTop: 10,
-    borderRadius: 10,
-    backgroundColor: themeColors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-  },
-  filterButtonText: {
-    color: themeColors.textOnBrand,
-    fontWeight: '700',
-  },
-  loadingWrap: {
-    paddingVertical: 10,
-  },
-  errorText: {
-    color: '#B42318',
-    fontSize: 12,
-    marginBottom: 8,
-  },
-  list: {
-    //maxHeight: 460,
-  },
-  listContent: {
-    gap: 10,
-    paddingBottom: 8,
-    paddingHorizontal: 10,
-  },
-  taskCard: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: themeColors.border,
-    padding: 12,
-    backgroundColor: themeColors.surface,
-  },
-  taskTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 6,
-    gap: 8,
-  },
-  statusActionsWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  taskName: {
-    flex: 1,
-    color: themeColors.textPrimary,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  statusBadge: {
-    fontSize: 11,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-  },
-  headerIconAction: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: themeColors.secondary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerSecondaryIconAction: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    borderWidth: 1,
-    borderColor: themeColors.border,
-    backgroundColor: themeColors.surfaceMuted,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  taskMeta: {
-    color: themeColors.textSecondary,
-    fontSize: 12,
-    marginBottom: 2,
-  },
-  taskActions: {
-    marginTop: 10,
-    flexDirection: 'row',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
-  actionButton: {
-    flexDirection: 'row',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 9,
-    backgroundColor: themeColors.secondary,
-    alignItems: 'center',
-  },
-  actionButtonText: {
-    color: themeColors.textOnBrand,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  secondaryActionButton: {
-    flexDirection: 'row',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 9,
-    borderWidth: 1,
-    borderColor: themeColors.border,
-    alignItems: 'center',
-    backgroundColor: themeColors.surfaceMuted,
-  },
-  secondaryActionButtonText: {
-    color: themeColors.textPrimary,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  disabledButton: {
-    opacity: 0.6,
-  },
-  disabledSecondaryButton: {
-    opacity: 0.5,
-  },
-  emptyState: {
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: themeColors.border,
-    backgroundColor: themeColors.surfaceMuted,
-    paddingVertical: 18,
-    paddingHorizontal: 12,
-    alignItems: 'center',
-  },
-  emptyText: {
-    color: themeColors.textSecondary,
-    fontSize: 12,
-  },
-  modalScreen: {
-    flex: 1,
-    backgroundColor: themeColors.appBackground,
-  },
-  modalHeader: {
-    paddingTop: 52,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: themeColors.border,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: themeColors.surface,
-  },
-  modalTitle: {
-    color: themeColors.textPrimary,
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  closeText: {
-    color: themeColors.primary,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  modalBody: {
-    padding: 14,
-    gap: 8,
-  },
-  detailRow: {
-    color: themeColors.textPrimary,
-    fontSize: 13,
-    marginBottom: 4,
-  },
-  typeRow: {
-    gap: 8,
-    paddingVertical: 4,
-  },
-  typeChip: {
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: themeColors.border,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: themeColors.surface,
-  },
-  typeChipActive: {
-    borderColor: themeColors.secondary,
-    backgroundColor: '#FFF1E8',
-  },
-  typeChipText: {
-    color: themeColors.textSecondary,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  typeChipTextActive: {
-    color: themeColors.secondary,
-    fontWeight: '700',
-  },
-  textArea: {
-    minHeight: 90,
-    textAlignVertical: 'top',
-  },
-  fileNameText: {
-    color: themeColors.textSecondary,
-    fontSize: 12,
-    marginTop: 8,
-  },
-  radioGroup: {
-    gap: 8,
-  },
-  radioRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  radioOuter: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 2,
-    borderColor: themeColors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  radioOuterSelected: {
-    borderColor: themeColors.primary,
-  },
-  radioInner: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: themeColors.primary,
-  },
-  radioLabel: {
-    color: themeColors.textPrimary,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  customRangeWrap: {
-    marginTop: 10,
-    gap: 4,
-  },
-  dialogActions: {
-    marginTop: 14,
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 8,
-  },
-  dialogCancelButton: {
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: themeColors.border,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: themeColors.surface,
-  },
-  dialogCancelText: {
-    color: themeColors.textPrimary,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  dialogApplyButton: {
-    borderRadius: 10,
-    backgroundColor: themeColors.primary,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  dialogApplyText: {
-    color: themeColors.textOnBrand,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  pickerModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.2)',
-    justifyContent: 'center',
-    paddingHorizontal: 18,
-  },
-  pickerModalBackdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  pickerModalCard: {
-    borderRadius: 14,
-    backgroundColor: themeColors.surface,
-    borderWidth: 1,
-    borderColor: themeColors.border,
-    paddingHorizontal: 12,
-    paddingTop: 12,
-    paddingBottom: 10,
-  },
-  pickerModalTitle: {
-    color: themeColors.textPrimary,
-    fontSize: 15,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  pickerModalActions: {
-    marginTop: 4,
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 8,
-  },
-});
+const styles = allStyles;
