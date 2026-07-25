@@ -53,7 +53,7 @@ export function FacilitySelectionScreen({
     <SafeAreaView style={styles.screen} edges={['top', 'left', 'right', 'bottom']}>
       <ScrollView contentContainerStyle={styles.screenContent} keyboardShouldPersistTaps="handled">
         <View style={styles.card}>
-        <Text style={styles.kicker}>The Builder&apos;s Hive</Text>
+        <Text style={styles.kicker}>Click Health Pro</Text>
         <Text style={styles.title}>Select Facility</Text>
         <Text style={styles.subtitle}>
           You are associated with more than one facility. Choose one to continue.

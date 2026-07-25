@@ -45,7 +45,7 @@ export function LoginScreen({ loading, errorMessage, onSubmit }: LoginScreenProp
       >
         <Card style={styles.card} mode="elevated">
           <Card.Content>
-          <Text style={styles.kicker}>The Builder's Hive</Text>
+          <Text style={styles.kicker}>Click Health Pro</Text>
           <Text style={styles.title}>Welcome back</Text>
           <Text style={styles.subtitle}>Sign in with your email and password to continue.</Text>
 

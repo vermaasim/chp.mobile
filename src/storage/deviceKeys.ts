@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import forge from 'node-forge';
 
-const DEVICE_KEYPAIR_STORAGE_KEY = 'thebuildershive.mobile.deviceKeypair';
+const DEVICE_KEYPAIR_STORAGE_KEY = 'chp.mobile.deviceKeypair';
 
 interface DeviceKeyPair {
   publicKey: string;

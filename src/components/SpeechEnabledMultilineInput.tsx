@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { regenerateText, type RegenerationContextEnvelope } from '../api/textRegeneration';
 import { useSpeechToText } from '../hooks/useSpeechToText';
 import { allStyles } from '../styles/commonStyles';
 import { themeColors } from '../theme/colors';
@@ -11,6 +13,18 @@ interface SpeechEnabledMultilineInputProps {
   placeholder?: string;
   numberOfLines?: number;
   speechLocale?: string;
+  token?: string;
+  facilityId?: string;
+  regenerationContext?: RegenerationContextEnvelope;
+}
+
+function buildIdempotencyKey() {
+  const randomSuffix = Math.random().toString(36).slice(2, 12);
+  return `regen-${Date.now()}-${randomSuffix}`.slice(0, 100);
+}
+
+function toLanguageHint(locale: 'hi-IN' | 'en-US'): 'hi' | 'en' {
+  return locale === 'hi-IN' ? 'hi' : 'en';
 }
 
 export function SpeechEnabledMultilineInput({
@@ -19,11 +33,16 @@ export function SpeechEnabledMultilineInput({
   placeholder,
   numberOfLines = 4,
   speechLocale = 'hi-IN',
+  token,
+  facilityId,
+  regenerationContext,
 }: SpeechEnabledMultilineInputProps) {
+  const insets = useSafeAreaInsets();
   const [assistantVisible, setAssistantVisible] = useState(false);
   const [draftText, setDraftText] = useState(value);
   const [draftHistory, setDraftHistory] = useState<string[]>([]);
   const [isRewriting, setIsRewriting] = useState(false);
+  const [rewriteErrorMessage, setRewriteErrorMessage] = useState<string | null>(null);
   const [speechLanguage, setSpeechLanguage] = useState<'hi-IN' | 'en-US'>(speechLocale.startsWith('hi') ? 'hi-IN' : 'en-US');
   const latestDraftRef = useRef(value);
   const committedDraftRef = useRef(value.trim());
@@ -103,6 +122,7 @@ export function SpeechEnabledMultilineInput({
     setDraftText(value);
     committedDraftRef.current = value.trim();
     setDraftHistory([]);
+    setRewriteErrorMessage(null);
     setAssistantVisible(true);
   };
 
@@ -117,6 +137,7 @@ export function SpeechEnabledMultilineInput({
     setDraftText(value);
     committedDraftRef.current = value.trim();
     setDraftHistory([]);
+    setRewriteErrorMessage(null);
   };
 
   const acceptDraft = () => {
@@ -153,11 +174,33 @@ export function SpeechEnabledMultilineInput({
       return;
     }
 
+    const sourceText = latestDraftRef.current.trim();
+
+    if (!sourceText) {
+      setRewriteErrorMessage('Please enter text before using AI rewrite.');
+      return;
+    }
+
+    if (!token || !facilityId) {
+      setRewriteErrorMessage('AI rewrite unavailable right now.');
+      return;
+    }
+
     setIsRewriting(true);
+    setRewriteErrorMessage(null);
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 700));
-      setDraftWithHistory('AI rewritten draft placeholder text. Replace this mock response with the real API result later.');
+      const response = await regenerateText(token, {
+        sourceText,
+        facilityId,
+        idempotencyKey: buildIdempotencyKey(),
+        languageHint: toLanguageHint(speechLanguage),
+        context: regenerationContext,
+      });
+
+      setDraftWithHistory(response.regeneratedText);
+    } catch (error) {
+      setRewriteErrorMessage(error instanceof Error ? error.message : 'Unable to rewrite text right now. Please try again.');
     } finally {
       setIsRewriting(false);
     }
@@ -222,7 +265,7 @@ export function SpeechEnabledMultilineInput({
       <Modal animationType="fade" transparent visible={assistantVisible} onRequestClose={closeAssistant}>
         <View style={componentStyles.overlay}>
           <Pressable style={componentStyles.backdrop} onPress={closeAssistant} />
-          <View style={componentStyles.sheet}>
+          <View style={[componentStyles.sheet, { paddingBottom: 16 + insets.bottom }]}>
             <View style={componentStyles.sheetHeader}>
               <View style={componentStyles.headerLeftRow}>
                 <View style={[componentStyles.headerCopy]}>
@@ -261,6 +304,7 @@ export function SpeechEnabledMultilineInput({
             {isListening ? <Text style={componentStyles.listeningText}>Listening while pressed...</Text> : null}
             {partialTranscript ? <Text style={componentStyles.partialText}>Heard: {partialTranscript}</Text> : null}
             {errorMessage ? <Text style={allStyles.errorText}>{errorMessage}</Text> : null}
+            {rewriteErrorMessage ? <Text style={allStyles.errorText}>{rewriteErrorMessage}</Text> : null}
 
             <View style={componentStyles.actionRow}>
               <Pressable
@@ -313,13 +357,13 @@ export function SpeechEnabledMultilineInput({
 
               <Pressable
                 onPress={() => void rewriteWithAi()}
-                disabled={isRewriting}
+                disabled={isRewriting || !draftText.trim() || !token || !facilityId}
                 accessibilityRole="button"
                 accessibilityLabel="Rewrite text with AI"
                 style={({ pressed }) => [
                   componentStyles.roundAction,
                   componentStyles.aiAction,
-                  isRewriting ? componentStyles.roundActionDisabled : null,
+                  (isRewriting || !draftText.trim() || !token || !facilityId) ? componentStyles.roundActionDisabled : null,
                   pressed ? componentStyles.roundActionPressed : null,
                 ]}
               >

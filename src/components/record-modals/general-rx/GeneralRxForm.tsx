@@ -9,6 +9,7 @@ import {
   GENERAL_PRESCRIPTION_SUGGESTIONS,
   getTopSuggestions,
 } from '../../../data/generalPrescriptionSuggestions';
+import type { RegenerationContextTextType } from '../../../api/textRegeneration';
 import { allStyles } from '../../../styles/commonStyles';
 import { SpeechEnabledMultilineInput } from '../../SpeechEnabledMultilineInput';
 
@@ -17,6 +18,8 @@ type PrescriptionStatus = 'Draft' | 'Final';
 const STATUS_VALUES: PrescriptionStatus[] = ['Draft', 'Final'];
 
 type GeneralRxFormProps = {
+  token: string;
+  facilityId: string;
   prescriptionStatus: PrescriptionStatus;
   setPrescriptionStatus: (status: PrescriptionStatus) => void;
   weight: string;
@@ -88,6 +91,20 @@ export function GeneralRxForm(props: GeneralRxFormProps) {
   const recentMedicineInstructions = [...props.generalRxMedicines].reverse().map((item) => item.instructions);
   const recentTestNames = [...props.generalRxTests].reverse().map((item) => item.name);
   const recentTestInstructions = [...props.generalRxTests].reverse().map((item) => item.instructions);
+
+  const withAiContext = (
+    textType: RegenerationContextTextType,
+    clinicalContext: string,
+    styleHints: string,
+  ) => ({
+    token: props.token,
+    facilityId: props.facilityId,
+    regenerationContext: {
+      textType,
+      clinicalContext,
+      styleHints,
+    },
+  });
 
   return (
     <>
@@ -165,6 +182,7 @@ export function GeneralRxForm(props: GeneralRxFormProps) {
         value={props.generalRxComplaint}
         onChangeText={props.setGeneralRxComplaint}
         numberOfLines={3}
+        {...withAiContext('complaint', 'General prescription chief complaint.', 'Use concise professional clinical phrasing.')}
       />
 
       <Text style={allStyles.label}>Comorbidities</Text>
@@ -195,6 +213,7 @@ export function GeneralRxForm(props: GeneralRxFormProps) {
         value={props.comorbiditiesNotes}
         onChangeText={props.setComorbiditiesNotes}
         numberOfLines={3}
+        {...withAiContext('assessment', 'General prescription comorbidities notes.', 'Use concise comorbidity-oriented clinical wording.')}
       />
 
       <Text style={allStyles.label}>Medical and Surgical History</Text>
@@ -202,6 +221,7 @@ export function GeneralRxForm(props: GeneralRxFormProps) {
         value={props.medicalAndSurgicalHistory}
         onChangeText={props.setMedicalAndSurgicalHistory}
         numberOfLines={3}
+        {...withAiContext('assessment', 'General prescription medical and surgical history.', 'Use structured history-oriented phrasing.')}
       />
 
       <Text style={allStyles.label}>Diagnosis</Text>
@@ -209,6 +229,7 @@ export function GeneralRxForm(props: GeneralRxFormProps) {
         value={props.generalRxDiagnosis}
         onChangeText={props.setGeneralRxDiagnosis}
         numberOfLines={3}
+        {...withAiContext('assessment', 'General prescription diagnosis.', 'Use concise diagnosis-focused clinical tone.')}
       />
 
       <Text style={allStyles.label}>Medicines</Text>
@@ -248,6 +269,7 @@ export function GeneralRxForm(props: GeneralRxFormProps) {
           value={props.currentMedicine.instructions}
           onChangeText={(value) => props.updateCurrentMedicine('instructions', value)}
           numberOfLines={2}
+          {...withAiContext('treatment', 'Medicine instructions in general prescription.', 'Use clear, patient-friendly treatment instructions.')}
         />
         <SuggestionChips
           options={GENERAL_PRESCRIPTION_SUGGESTIONS.medicineInstructions}
@@ -311,6 +333,7 @@ export function GeneralRxForm(props: GeneralRxFormProps) {
           value={props.currentTest.instructions}
           onChangeText={(value) => props.updateCurrentTest('instructions', value)}
           numberOfLines={2}
+          {...withAiContext('follow_up', 'Recommended test instructions in general prescription.', 'Use concise follow-up and preparation guidance.')}
         />
         <SuggestionChips
           options={GENERAL_PRESCRIPTION_SUGGESTIONS.testInstructions}
@@ -346,6 +369,7 @@ export function GeneralRxForm(props: GeneralRxFormProps) {
         value={props.generalRxAdditionalNotes}
         onChangeText={props.setGeneralRxAdditionalNotes}
         numberOfLines={3}
+        {...withAiContext('other', 'General prescription additional notes.', 'Use concise professional clinician notes.')}
       />
 
       <Text style={allStyles.label}>Follow-up Date</Text>

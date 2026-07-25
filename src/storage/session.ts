@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import type { AuthSession } from '../types/auth';
 
-const SESSION_KEY = 'thebuildershive.mobile.session';
+const SESSION_KEY = 'chp.mobile.session';
 
 function getWebStorage() {
   if (Platform.OS !== 'web') {

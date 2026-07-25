@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import type { RegenerationContextTextType } from '../../../api/textRegeneration';
 import { allStyles } from '../../../styles/commonStyles';
 import { SpeechEnabledMultilineInput } from '../../SpeechEnabledMultilineInput';
 
@@ -9,6 +10,8 @@ type PrescriptionStatus = 'Draft' | 'Final';
 const STATUS_VALUES: PrescriptionStatus[] = ['Draft', 'Final'];
 
 type PhysiotherapyRxFormProps = {
+  token: string;
+  facilityId: string;
   prescriptionStatus: PrescriptionStatus;
   setPrescriptionStatus: (status: PrescriptionStatus) => void;
   physio: {
@@ -39,6 +42,20 @@ export function PhysiotherapyRxForm(props: PhysiotherapyRxFormProps) {
   const [isComplaintOpen, setIsComplaintOpen] = useState(true);
   const [isAssessmentOpen, setIsAssessmentOpen] = useState(true);
   const [isTreatmentOpen, setIsTreatmentOpen] = useState(true);
+
+  const withAiContext = (
+    textType: RegenerationContextTextType,
+    clinicalContext: string,
+    styleHints: string,
+  ) => ({
+    token: props.token,
+    facilityId: props.facilityId,
+    regenerationContext: {
+      textType,
+      clinicalContext,
+      styleHints,
+    },
+  });
 
   return (
     <>
@@ -91,6 +108,7 @@ export function PhysiotherapyRxForm(props: PhysiotherapyRxFormProps) {
               value={props.physio.complaint}
               onChangeText={(value) => props.updatePhysioField("complaint", value)}
               numberOfLines={3}
+              {...withAiContext('complaint', 'Physiotherapy chief complaint.', 'Use concise physiotherapy clinical phrasing.')}
             />
 
             <Text style={allStyles.label}>Medical History</Text>
@@ -125,6 +143,7 @@ export function PhysiotherapyRxForm(props: PhysiotherapyRxFormProps) {
                 props.updatePhysioField("medicalHistoryNotes", value)
               }
               numberOfLines={3}
+              {...withAiContext('assessment', 'Physiotherapy medical history notes.', 'Use concise history-oriented physiotherapy wording.')}
             />
 
             <Text style={allStyles.label}>Surgery Details</Text>
@@ -134,6 +153,7 @@ export function PhysiotherapyRxForm(props: PhysiotherapyRxFormProps) {
                 props.updatePhysioField("surgeryDetails", value)
               }
               numberOfLines={3}
+              {...withAiContext('assessment', 'Physiotherapy surgery details.', 'Use concise relevant surgical history wording.')}
             />
           </View>
         ) : null}
@@ -195,6 +215,7 @@ export function PhysiotherapyRxForm(props: PhysiotherapyRxFormProps) {
                 props.updatePhysioField("painTypeNotes", value)
               }
               numberOfLines={3}
+              {...withAiContext('assessment', 'Physiotherapy pain type notes.', 'Use objective pain assessment language.')}
             />
 
             <Text style={allStyles.label}>Pain Level Notes</Text>
@@ -204,6 +225,7 @@ export function PhysiotherapyRxForm(props: PhysiotherapyRxFormProps) {
                 props.updatePhysioField("painLevelNotes", value)
               }
               numberOfLines={2}
+              {...withAiContext('assessment', 'Physiotherapy pain level notes.', 'Use concise pain severity documentation style.')}
             />
 
             <Text style={allStyles.label}>Range Of Motion</Text>
@@ -213,6 +235,7 @@ export function PhysiotherapyRxForm(props: PhysiotherapyRxFormProps) {
                 props.updatePhysioField("rangeOfMotion", value)
               }
               numberOfLines={2}
+              {...withAiContext('assessment', 'Physiotherapy range of motion findings.', 'Use structured ROM assessment wording.')}
             />
 
             <Text style={allStyles.label}>Muscle Strength</Text>
@@ -222,6 +245,7 @@ export function PhysiotherapyRxForm(props: PhysiotherapyRxFormProps) {
                 props.updatePhysioField("muscleStrength", value)
               }
               numberOfLines={2}
+              {...withAiContext('assessment', 'Physiotherapy muscle strength findings.', 'Use concise strength assessment terminology.')}
             />
 
             <Text style={allStyles.label}>Muscle Tightness</Text>
@@ -231,6 +255,7 @@ export function PhysiotherapyRxForm(props: PhysiotherapyRxFormProps) {
                 props.updatePhysioField("muscleTightness", value)
               }
               numberOfLines={2}
+              {...withAiContext('assessment', 'Physiotherapy muscle tightness findings.', 'Use concise objective assessment language.')}
             />
 
             <Text style={allStyles.label}>Special Tests</Text>
@@ -238,6 +263,7 @@ export function PhysiotherapyRxForm(props: PhysiotherapyRxFormProps) {
               value={props.physio.specialTests}
               onChangeText={(value) => props.updatePhysioField("specialTests", value)}
               numberOfLines={2}
+              {...withAiContext('assessment', 'Physiotherapy special test findings.', 'Use concise test-result oriented wording.')}
             />
           </View>
         ) : null}
@@ -267,6 +293,7 @@ export function PhysiotherapyRxForm(props: PhysiotherapyRxFormProps) {
                 props.updatePhysioField("treatmentPlan", value)
               }
               numberOfLines={3}
+              {...withAiContext('treatment', 'Physiotherapy treatment plan.', 'Use actionable treatment planning language.')}
             />
 
             <Text style={allStyles.label}>Treatment Methods</Text>
@@ -310,6 +337,7 @@ export function PhysiotherapyRxForm(props: PhysiotherapyRxFormProps) {
                 props.updatePhysioField("shortTermTreatmentGoals", value)
               }
               numberOfLines={3}
+              {...withAiContext('treatment', 'Physiotherapy short-term goals.', 'Use measurable short-term therapy goals.')}
             />
 
             <Text style={allStyles.label}>Long Term Goals</Text>
@@ -319,6 +347,7 @@ export function PhysiotherapyRxForm(props: PhysiotherapyRxFormProps) {
                 props.updatePhysioField("longTermTreatmentGoals", value)
               }
               numberOfLines={3}
+              {...withAiContext('treatment', 'Physiotherapy long-term goals.', 'Use measurable long-term therapy goals.')}
             />
 
             <Text style={allStyles.label}>Do's and Don'ts</Text>
@@ -326,6 +355,7 @@ export function PhysiotherapyRxForm(props: PhysiotherapyRxFormProps) {
               value={props.physio.dosDonts}
               onChangeText={(value) => props.updatePhysioField("dosDonts", value)}
               numberOfLines={3}
+              {...withAiContext('dos_donts', 'Physiotherapy do and do-not advice.', 'Use clear patient-safe dos and donts guidance.')}
             />
           </View>
         ) : null}

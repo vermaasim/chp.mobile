@@ -9,7 +9,7 @@ export interface WorklistDateFilterPreference {
   toDate: string;
 }
 
-const FILTER_KEY = 'thebuildershive.mobile.worklist.datefilter';
+const FILTER_KEY = 'chp.mobile.worklist.datefilter';
 
 function getWebStorage() {
   if (Platform.OS !== 'web') {

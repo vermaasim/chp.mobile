@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
-const DEVICE_APP_ID_STORAGE_KEY = 'thebuildershive.mobile.deviceAppId';
+const DEVICE_APP_ID_STORAGE_KEY = 'chp.mobile.deviceAppId';
 
 function getWebStorage() {
   if (Platform.OS !== 'web') {

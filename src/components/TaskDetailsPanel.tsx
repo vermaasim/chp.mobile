@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { Card, Chip, Text } from 'react-native-paper';
+import { Card, Text } from 'react-native-paper';
 import {
   deleteClinicalNote,
   deleteDrawingRecord,
@@ -17,7 +17,7 @@ import {
   loadServiceLinkedRecords,
 } from '../api/records';
 import { mapEditingRecordToTemplate, type EditableRecordState } from './AddRecordModal';
-import { loadServiceDetails } from '../api/worklist';
+import { canStartService, loadServiceDetails, updateServiceStatus } from '../api/worklist';
 import { taskDetailsPanelStyles } from '../styles/commonStyles';
 import { themeColors } from '../theme/colors';
 import type { AssignedService, TaskDetailRecord, TaskDetailRecordType } from '../types/worklist';
@@ -47,6 +47,7 @@ import {
 interface TaskDetailsPanelProps {
   token: string;
   taskId: string;
+  facilityId: string;
   refreshSeed?: number;
   allowedPrescriptionTypes?: string[];
 }
@@ -104,21 +105,33 @@ function formatReadableDateTime(value?: string) {
   return `${day} ${month} ${year}, ${time}`;
 }
 
-function getStatusChipColor(status?: string) {
+function getStatusLabel(status?: string) {
+  if (!status) {
+    return 'Not Assigned';
+  }
+
+  return status.replace(/([a-z])([A-Z])/g, '$1 $2');
+}
+
+function getStatusTone(status?: string) {
   if (status === 'Completed') {
-    return '#2E7D32';
+    return {
+      badgeStyle: taskDetailsPanelStyles.statusChipCompleted,
+      textStyle: taskDetailsPanelStyles.statusChipTextCompleted,
+    };
   }
 
   if (status === 'InProgress') {
-    return '#FF914D';
+    return {
+      badgeStyle: taskDetailsPanelStyles.statusChipInProgress,
+      textStyle: taskDetailsPanelStyles.statusChipTextInProgress,
+    };
   }
 
-  return themeColors.textSecondary;
-}
-
-function getStatusLabel(status?: string) {
-
-  return status == 'InProgress' ? 'In Progress' : status || 'Not Assigned';
+  return {
+    badgeStyle: taskDetailsPanelStyles.statusChipNotStarted,
+    textStyle: taskDetailsPanelStyles.statusChipTextNotStarted,
+  };
 }
 
 function getRecordList(task: AssignedService, key: TaskDetailRecordType) {
@@ -252,12 +265,13 @@ function createPrescriptionPreviewText(payload: unknown) {
   return lines.join('\n');
 }
 
-export function TaskDetailsPanel({ token, taskId, refreshSeed, allowedPrescriptionTypes }: TaskDetailsPanelProps) {
+export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allowedPrescriptionTypes }: TaskDetailsPanelProps) {
   const [task, setTask] = useState<AssignedService | null>(null);
   const [linkedRecords, setLinkedRecords] = useState<TaskDetailRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [taskActionLoading, setTaskActionLoading] = useState(false);
   const [expandedRecordActionsId, setExpandedRecordActionsId] = useState<string | null>(null);
   const [fabOptionsVisible, setFabOptionsVisible] = useState(false);
   const [activeRecordModalTemplate, setActiveRecordModalTemplate] = useState<RecordTemplateKey | null>(null);
@@ -312,6 +326,20 @@ export function TaskDetailsPanel({ token, taskId, refreshSeed, allowedPrescripti
     };
   }, [refreshSeed, token, taskId]);
 
+  const refreshTaskSnapshot = async () => {
+    const detail = await loadServiceDetails(token, taskId);
+    let records: TaskDetailRecord[] = [];
+
+    try {
+      records = await loadServiceLinkedRecords(token, taskId);
+    } catch {
+      records = [];
+    }
+
+    setTask(detail);
+    setLinkedRecords(records);
+  };
+
   const recordGroups = useMemo(() => (task ? pickTaskRecords(task) : []), [task]);
   const fallbackRecords = useMemo(() => recordGroups.flatMap((group) => group.records), [recordGroups]);
   const displayRecords = linkedRecords.length > 0 ? linkedRecords : fallbackRecords;
@@ -322,6 +350,42 @@ export function TaskDetailsPanel({ token, taskId, refreshSeed, allowedPrescripti
       setFabOptionsVisible(false);
     }
   }, [task?.status]);
+
+  const handleTaskStatusChange = async (nextStatus: 'NotStarted' | 'InProgress' | 'Completed') => {
+    if (!task || taskActionLoading) {
+      return;
+    }
+
+    setTaskActionLoading(true);
+    setErrorMessage(null);
+
+    try {
+      await updateServiceStatus(token, {
+        serviceId: task.id,
+        status: nextStatus,
+      });
+
+      await refreshTaskSnapshot();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to update service status.');
+    } finally {
+      setTaskActionLoading(false);
+    }
+  };
+
+  const handleUndoTaskStatus = async () => {
+    if (!task || taskActionLoading) {
+      return;
+    }
+
+    const nextStatus = task.status === 'Completed' ? 'InProgress' : task.status === 'InProgress' ? 'NotStarted' : null;
+
+    if (!nextStatus) {
+      return;
+    }
+
+    await handleTaskStatusChange(nextStatus);
+  };
 
   const refreshLinkedRecords = async () => {
     if (!task) {
@@ -590,7 +654,10 @@ export function TaskDetailsPanel({ token, taskId, refreshSeed, allowedPrescripti
   if (loading) {
     return (
       <View style={taskDetailsPanelStyles.loadingWrap}>
-        <ActivityIndicator size="small" color={themeColors.primary} />
+        <View style={taskDetailsPanelStyles.loadingRow}>
+          <ActivityIndicator size="small" color={themeColors.primary} />
+          <Text style={taskDetailsPanelStyles.loadingText}>Loading task details...</Text>
+        </View>
       </View>
     );
   }
@@ -604,8 +671,11 @@ export function TaskDetailsPanel({ token, taskId, refreshSeed, allowedPrescripti
   }
 
   const patientName = formatPatientName(task) || 'Unnamed Patient';
-  const statusColor = getStatusChipColor(task.status);
+  const statusTone = getStatusTone(task.status);
   const canOpenCreateChooser = task.status === 'InProgress';
+  const canStartTask = canStartService(task.status);
+  const canCompleteTask = task.status === 'InProgress';
+  const canUndoTask = task.status === 'InProgress' || task.status === 'Completed';
 
   return (
     <View style={taskDetailsPanelStyles.panelRoot}>
@@ -613,32 +683,73 @@ export function TaskDetailsPanel({ token, taskId, refreshSeed, allowedPrescripti
       <Card mode="outlined" style={taskDetailsPanelStyles.headerCard}>
         <Card.Content>
           <View style={taskDetailsPanelStyles.statusRow}>
-            <View style={taskDetailsPanelStyles.titleBlock} >
+            <View style={taskDetailsPanelStyles.titleBlock}>
+              <Text style={taskDetailsPanelStyles.headerEyebrow}>Task Details</Text>
               <Text style={taskDetailsPanelStyles.title}>{patientName}</Text>
+              <Text style={taskDetailsPanelStyles.subTitle}>{task.serviceName || 'Service not assigned'}</Text>
             </View>
-            <Chip style={[taskDetailsPanelStyles.statusChip, { backgroundColor: statusColor }]} textStyle={taskDetailsPanelStyles.statusChipText}>
-              {getStatusLabel(task.status)}
-            </Chip>
+            <View style={[taskDetailsPanelStyles.statusChip, statusTone.badgeStyle]}>
+              <Text style={[taskDetailsPanelStyles.statusChipText, statusTone.textStyle]}>{getStatusLabel(task.status)}</Text>
+            </View>
           </View>
 
           <View style={taskDetailsPanelStyles.metaGrid}>
-            <View style={taskDetailsPanelStyles.metaRow}>
+            <View style={taskDetailsPanelStyles.metaRowCard}>
               <Text style={taskDetailsPanelStyles.metaKey}>Task ID</Text>
               <Text style={taskDetailsPanelStyles.metaValue}>{task.displayId || task.id || '-'}</Text>
             </View>
-            <View style={taskDetailsPanelStyles.metaRow}>
-              <Text style={taskDetailsPanelStyles.metaKey}>Service Name</Text>
-              <Text style={taskDetailsPanelStyles.metaValue}>{task.serviceName || '-'}</Text>
-            </View>
-            <View style={taskDetailsPanelStyles.metaRow}>
+            <View style={taskDetailsPanelStyles.metaRowCard}>
               <Text style={taskDetailsPanelStyles.metaKey}>Date</Text>
               <Text style={taskDetailsPanelStyles.metaValue}>{formatReadableDateTime(task.scheduledStartDateTime)}</Text>
             </View>
-            <View style={taskDetailsPanelStyles.metaRow}>
+            <View style={taskDetailsPanelStyles.metaRowCard}>
               <Text style={taskDetailsPanelStyles.metaKey}>Assigned To</Text>
               <Text style={taskDetailsPanelStyles.metaValue}>{task.assignedToUserName || '-'}</Text>
             </View>
           </View>
+
+          {(canStartTask || canCompleteTask || canUndoTask) ? (
+            <View style={taskDetailsPanelStyles.taskStatusActions}>
+              {canStartTask ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Start task"
+                  disabled={taskActionLoading}
+                  onPress={() => void handleTaskStatusChange('InProgress')}
+                  style={[taskDetailsPanelStyles.taskStatusActionButton, taskActionLoading ? taskDetailsPanelStyles.taskStatusActionButtonDisabled : null]}
+                >
+                  <Feather name="play" size={14} color={themeColors.textOnBrand} />
+                  <Text style={taskDetailsPanelStyles.taskStatusActionText}>Start</Text>
+                </Pressable>
+              ) : null}
+
+              {canCompleteTask ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Complete task"
+                  disabled={taskActionLoading}
+                  onPress={() => void handleTaskStatusChange('Completed')}
+                  style={[taskDetailsPanelStyles.taskStatusActionButton, taskActionLoading ? taskDetailsPanelStyles.taskStatusActionButtonDisabled : null]}
+                >
+                  <Feather name="check-circle" size={14} color={themeColors.textOnBrand} />
+                  <Text style={taskDetailsPanelStyles.taskStatusActionText}>Complete</Text>
+                </Pressable>
+              ) : null}
+
+              {canUndoTask ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Undo task status"
+                  disabled={taskActionLoading}
+                  onPress={() => void handleUndoTaskStatus()}
+                  style={[taskDetailsPanelStyles.taskStatusActionButtonSecondary, taskActionLoading ? taskDetailsPanelStyles.taskStatusActionButtonDisabled : null]}
+                >
+                  <Feather name="corner-up-left" size={14} color={themeColors.secondary} />
+                  <Text style={taskDetailsPanelStyles.taskStatusActionTextSecondary}>Undo</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
         </Card.Content>
       </Card>
 
@@ -690,6 +801,9 @@ export function TaskDetailsPanel({ token, taskId, refreshSeed, allowedPrescripti
               <Text style={taskDetailsPanelStyles.sectionHeading}>Records</Text>
               <Text style={taskDetailsPanelStyles.sectionHint}>Prescriptions, notes, drawings, and medical records</Text>
             </View>
+            <View style={taskDetailsPanelStyles.sectionCountBadge}>
+              <Text style={taskDetailsPanelStyles.sectionCountText}>{displayRecords.length} records</Text>
+            </View>
           </View>
 
           <View style={taskDetailsPanelStyles.recordsList}>
@@ -720,6 +834,7 @@ export function TaskDetailsPanel({ token, taskId, refreshSeed, allowedPrescripti
                       key: 'view',
                       label: 'View',
                       icon: 'eye',
+                      isPrimary: true,
                       onPress: () => {
                         setExpandedRecordActionsId(null);
                         void handleViewRecord(record);
@@ -782,7 +897,9 @@ export function TaskDetailsPanel({ token, taskId, refreshSeed, allowedPrescripti
                           <Text style={taskDetailsPanelStyles.recordTitle} numberOfLines={1}>
                             {record.displayId || record.name || record.recordType || record.id}
                           </Text>
-                          <Text style={taskDetailsPanelStyles.recordMeta}>{getDisplayRecordType(record)}</Text>
+                          <View style={taskDetailsPanelStyles.recordTypeChip}>
+                            <Text style={taskDetailsPanelStyles.recordTypeChipText}>{getDisplayRecordType(record)}</Text>
+                          </View>
                         </View>
                         <View
                           accessibilityRole="image"
@@ -810,14 +927,23 @@ export function TaskDetailsPanel({ token, taskId, refreshSeed, allowedPrescripti
                             key={`${record.id}-${operation.key}`}
                             accessibilityRole="button"
                             accessibilityLabel={`${operation.label} record`}
-                            style={operation.isPrimary ? taskDetailsPanelStyles.actionIconButtonPrimary : taskDetailsPanelStyles.actionIconButtonSecondary}
+                            style={operation.isPrimary ? taskDetailsPanelStyles.actionPill : taskDetailsPanelStyles.actionPillSecondary}
                             onPress={operation.onPress}
                           >
                             <Feather
                               name={operation.icon}
-                              size={16}
+                              size={14}
                               color={operation.isPrimary ? themeColors.textOnBrand : themeColors.textPrimary}
                             />
+                            <Text
+                              style={
+                                operation.isPrimary
+                                  ? taskDetailsPanelStyles.actionPillText
+                                  : taskDetailsPanelStyles.actionPillTextSecondary
+                              }
+                            >
+                              {operation.label}
+                            </Text>
                           </Pressable>
                         ))}
                         {overflowOperations.length > 0 ? (
@@ -897,6 +1023,7 @@ export function TaskDetailsPanel({ token, taskId, refreshSeed, allowedPrescripti
       <AddGeneralRxModal
         visible={activeRecordModalTemplate === 'generalRx'}
         token={token}
+        facilityId={facilityId}
         serviceId={task.id}
         editingRecord={editingRecord}
         onClose={closeRecordModal}
@@ -906,6 +1033,7 @@ export function TaskDetailsPanel({ token, taskId, refreshSeed, allowedPrescripti
       <AddPhysiotherapyRxModal
         visible={activeRecordModalTemplate === 'physiotherapyRx'}
         token={token}
+        facilityId={facilityId}
         serviceId={task.id}
         editingRecord={editingRecord}
         onClose={closeRecordModal}
@@ -915,6 +1043,7 @@ export function TaskDetailsPanel({ token, taskId, refreshSeed, allowedPrescripti
       <AddFrozenShoulderRxModal
         visible={activeRecordModalTemplate === 'frozenShoulderRx'}
         token={token}
+        facilityId={facilityId}
         serviceId={task.id}
         editingRecord={editingRecord}
         onClose={closeRecordModal}
@@ -924,6 +1053,7 @@ export function TaskDetailsPanel({ token, taskId, refreshSeed, allowedPrescripti
       <AddDentalRxModal
         visible={activeRecordModalTemplate === 'dentalRx'}
         token={token}
+        facilityId={facilityId}
         serviceId={task.id}
         editingRecord={editingRecord}
         onClose={closeRecordModal}
@@ -933,6 +1063,7 @@ export function TaskDetailsPanel({ token, taskId, refreshSeed, allowedPrescripti
       <AddLabReportModal
         visible={activeRecordModalTemplate === 'labReport'}
         token={token}
+        facilityId={facilityId}
         serviceId={task.id}
         editingRecord={editingRecord}
         onClose={closeRecordModal}
@@ -942,6 +1073,7 @@ export function TaskDetailsPanel({ token, taskId, refreshSeed, allowedPrescripti
       <AddGeneralNotesModal
         visible={activeRecordModalTemplate === 'generalNotes'}
         token={token}
+        facilityId={facilityId}
         serviceId={task.id}
         editingRecord={editingRecord}
         onClose={closeRecordModal}
@@ -951,6 +1083,7 @@ export function TaskDetailsPanel({ token, taskId, refreshSeed, allowedPrescripti
       <AddPhysiotherapyTxNotesModal
         visible={activeRecordModalTemplate === 'physiotherapyTxNotes'}
         token={token}
+        facilityId={facilityId}
         serviceId={task.id}
         editingRecord={editingRecord}
         onClose={closeRecordModal}
@@ -960,6 +1093,7 @@ export function TaskDetailsPanel({ token, taskId, refreshSeed, allowedPrescripti
       <AddDiagramModal
         visible={activeRecordModalTemplate === 'diagram'}
         token={token}
+        facilityId={facilityId}
         serviceId={task.id}
         editingRecord={editingRecord}
         onClose={closeRecordModal}
@@ -969,6 +1103,7 @@ export function TaskDetailsPanel({ token, taskId, refreshSeed, allowedPrescripti
       <AddMedicalRecordModal
         visible={medicalRecordModalVisible}
         token={token}
+        facilityId={facilityId}
         serviceId={task.id}
         onClose={() => setMedicalRecordModalVisible(false)}
         onSaved={() => {

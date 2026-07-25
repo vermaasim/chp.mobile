@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from 'react-native-paper';
 import * as DocumentPicker from 'expo-document-picker';
 import { addMedicalRecord } from '../../api/records';
@@ -12,6 +13,7 @@ const RECORD_TYPES = ['Document', 'LabReport', 'XRay', 'Photo', 'Video', 'Other'
 interface MedicalRecordUploadModalProps {
   visible: boolean;
   token: string;
+  facilityId: string;
   serviceId: string | null;
   onClose: () => void;
   onSaved: () => void;
@@ -21,7 +23,8 @@ function toIsoDate(value: Date) {
   return value.toISOString().slice(0, 10);
 }
 
-export function MedicalRecordUploadModal({ visible, token, serviceId, onClose, onSaved }: MedicalRecordUploadModalProps) {
+export function MedicalRecordUploadModal({ visible, token, facilityId, serviceId, onClose, onSaved }: MedicalRecordUploadModalProps) {
+  const insets = useSafeAreaInsets();
   const [recordName, setRecordName] = useState('');
   const [recordType, setRecordType] = useState(RECORD_TYPES[0]);
   const [recordDate, setRecordDate] = useState(toIsoDate(new Date()));
@@ -104,7 +107,13 @@ export function MedicalRecordUploadModal({ visible, token, serviceId, onClose, o
         </View>
 
         <View style={allStyles.modalContent}>
-          <ScrollView style={allStyles.modalScroll} contentContainerStyle={allStyles.modalBodyWithFooter}>
+          <ScrollView
+            style={allStyles.modalScroll}
+            contentContainerStyle={[
+              allStyles.modalBodyWithFooter,
+              { paddingBottom: Math.max(20, insets.bottom + 20) },
+            ]}
+          >
             {errorMessage ? <Text style={allStyles.errorText}>{errorMessage}</Text> : null}
 
           <Text style={allStyles.label}>Record Name</Text>
@@ -127,7 +136,19 @@ export function MedicalRecordUploadModal({ visible, token, serviceId, onClose, o
           </ScrollView>
 
           <Text style={allStyles.label}>Description</Text>
-          <SpeechEnabledMultilineInput value={recordDescription} onChangeText={setRecordDescription} numberOfLines={4} placeholder="Optional notes" />
+          <SpeechEnabledMultilineInput
+            value={recordDescription}
+            onChangeText={setRecordDescription}
+            numberOfLines={4}
+            placeholder="Optional notes"
+            token={token}
+            facilityId={facilityId}
+            regenerationContext={{
+              textType: 'other',
+              clinicalContext: 'Medical record upload description.',
+              styleHints: 'Brief professional clinical wording.',
+            }}
+          />
 
           <Pressable style={allStyles.secondaryActionButton} onPress={() => void selectFile()}>
             <Text style={allStyles.secondaryActionButtonText}>Choose File</Text>
@@ -137,7 +158,7 @@ export function MedicalRecordUploadModal({ visible, token, serviceId, onClose, o
 
           </ScrollView>
 
-          <View style={allStyles.modalFooter}>
+          <View style={[allStyles.modalFooter, { paddingBottom: Math.max(14, insets.bottom + 14) }]}>
             <Pressable
               style={[allStyles.filterButton, allStyles.modalFooterButton, saving ? allStyles.disabledButton : null]}
               disabled={saving}

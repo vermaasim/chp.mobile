@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   addClinicalNote,
   addDrawingRecord,
@@ -39,10 +40,12 @@ import {
   PRESCRIPTION_TYPE_VALUE,
   type RecordTemplateKey,
 } from './record-flow/recordTemplates';
+import type { RegenerationContextTextType } from '../api/textRegeneration';
 
 export interface AddRecordModalProps {
   visible: boolean;
   token: string;
+  facilityId: string;
   serviceId: string | null;
   template: RecordTemplateKey;
   editingRecord?: EditableRecordState | null;
@@ -275,6 +278,7 @@ export function mapEditingRecordToTemplate(editingRecord?: EditableRecordState |
 export function BaseRecordTemplateModal({
   visible,
   token,
+  facilityId,
   serviceId,
   template,
   editingRecord,
@@ -283,6 +287,7 @@ export function BaseRecordTemplateModal({
   onClose,
   onSaved,
 }: AddRecordModalProps) {
+  const insets = useSafeAreaInsets();
   const defaultGeneralPrescription = getGeneralPrescriptionDataJson();
   const selectedTemplate = template;
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -377,6 +382,20 @@ export function BaseRecordTemplateModal({
   const [labAdditionalNotes, setLabAdditionalNotes] = useState('');
   const [labSelectedTestsCsv, setLabSelectedTestsCsv] = useState('');
   const [labTests, setLabTests] = useState<LabTestInput[]>([]);
+
+  const withAiContext = (
+    textType: RegenerationContextTextType,
+    clinicalContext: string,
+    styleHints: string,
+  ) => ({
+    token,
+    facilityId,
+    regenerationContext: {
+      textType,
+      clinicalContext,
+      styleHints,
+    },
+  });
 
   const [drawingName, setDrawingName] = useState('');
   const [drawingJson, setDrawingJson] = useState<string>(JSON.stringify({ version: 'mobile-1', background: '#ffffff', strokes: [] }));
@@ -1166,11 +1185,19 @@ export function BaseRecordTemplateModal({
         </View>
 
         <View style={allStyles.modalContent}>
-          <ScrollView style={allStyles.modalScroll} contentContainerStyle={allStyles.modalBodyWithFooter}>
+          <ScrollView
+            style={allStyles.modalScroll}
+            contentContainerStyle={[
+              allStyles.modalBodyWithFooter,
+              { paddingBottom: Math.max(20, insets.bottom + 20) },
+            ]}
+          >
             {errorMessage ? <Text style={allStyles.errorText}>{errorMessage}</Text> : null}
 
           {selectedTemplate === 'generalRx' ? (
             <GeneralRxForm
+              token={token}
+              facilityId={facilityId}
               prescriptionStatus={activeGeneralRx.prescriptionStatus}
               setPrescriptionStatus={activeGeneralRx.setPrescriptionStatus}
               weight={activeGeneralRx.weight}
@@ -1212,6 +1239,8 @@ export function BaseRecordTemplateModal({
 
           {selectedTemplate === 'physiotherapyRx' ? (
             <PhysiotherapyRxForm
+              token={token}
+              facilityId={facilityId}
               prescriptionStatus={activePhysiotherapyRx.prescriptionStatus}
               setPrescriptionStatus={activePhysiotherapyRx.setPrescriptionStatus}
               physio={activePhysiotherapyRx.physio}
@@ -1236,7 +1265,12 @@ export function BaseRecordTemplateModal({
               </View>
 
               <Text style={allStyles.label}>Complaint</Text>
-              <SpeechEnabledMultilineInput value={frozenShoulderComplaint} onChangeText={setFrozenShoulderComplaint} numberOfLines={3} />
+              <SpeechEnabledMultilineInput
+                value={frozenShoulderComplaint}
+                onChangeText={setFrozenShoulderComplaint}
+                numberOfLines={3}
+                {...withAiContext('complaint', 'Frozen shoulder prescription complaint.', 'Brief professional clinical tone.')}
+              />
 
               <Text style={allStyles.label}>Complaint Side</Text>
               <View style={allStyles.typeRow}>
@@ -1292,10 +1326,20 @@ export function BaseRecordTemplateModal({
               <TextInput value={frozenShoulderTypeOfInjury} onChangeText={setFrozenShoulderTypeOfInjury} style={allStyles.input} placeholder="e.g. Fall" />
 
               <Text style={allStyles.label}>Aggravating Factor</Text>
-              <SpeechEnabledMultilineInput value={frozenShoulderAggravatingFactor} onChangeText={setFrozenShoulderAggravatingFactor} numberOfLines={2} />
+              <SpeechEnabledMultilineInput
+                value={frozenShoulderAggravatingFactor}
+                onChangeText={setFrozenShoulderAggravatingFactor}
+                numberOfLines={2}
+                {...withAiContext('assessment', 'Frozen shoulder aggravating factors.', 'Use concise physiotherapy assessment language.')}
+              />
 
               <Text style={allStyles.label}>Relieving Factor</Text>
-              <SpeechEnabledMultilineInput value={frozenShoulderRelievingFactor} onChangeText={setFrozenShoulderRelievingFactor} numberOfLines={2} />
+              <SpeechEnabledMultilineInput
+                value={frozenShoulderRelievingFactor}
+                onChangeText={setFrozenShoulderRelievingFactor}
+                numberOfLines={2}
+                {...withAiContext('assessment', 'Frozen shoulder relieving factors.', 'Use concise physiotherapy assessment language.')}
+              />
 
               <Text style={allStyles.label}>Night Pain</Text>
               <TextInput value={frozenShoulderNightPain} onChangeText={setFrozenShoulderNightPain} style={allStyles.input} placeholder="Increased/Decreased" />
@@ -1310,22 +1354,47 @@ export function BaseRecordTemplateModal({
               </View>
 
               <Text style={allStyles.label}>Notes</Text>
-              <SpeechEnabledMultilineInput value={frozenShoulderNotes} onChangeText={setFrozenShoulderNotes} numberOfLines={2} />
+              <SpeechEnabledMultilineInput
+                value={frozenShoulderNotes}
+                onChangeText={setFrozenShoulderNotes}
+                numberOfLines={2}
+                {...withAiContext('assessment', 'Frozen shoulder clinician notes.', 'Use concise objective assessment language.')}
+              />
 
               <Text style={allStyles.label}>Pain Level</Text>
               <TextInput value={frozenShoulderPainLevel} onChangeText={setFrozenShoulderPainLevel} style={allStyles.input} keyboardType="numeric" placeholder="0-10" />
 
               <Text style={allStyles.label}>Range Of Motion</Text>
-              <SpeechEnabledMultilineInput value={frozenShoulderRangeOfMotion} onChangeText={setFrozenShoulderRangeOfMotion} numberOfLines={2} />
+              <SpeechEnabledMultilineInput
+                value={frozenShoulderRangeOfMotion}
+                onChangeText={setFrozenShoulderRangeOfMotion}
+                numberOfLines={2}
+                {...withAiContext('assessment', 'Frozen shoulder range of motion findings.', 'Use structured ROM clinical phrasing.')}
+              />
 
               <Text style={allStyles.label}>Treatment Plan</Text>
-              <SpeechEnabledMultilineInput value={frozenShoulderTreatmentPlan} onChangeText={setFrozenShoulderTreatmentPlan} numberOfLines={3} />
+              <SpeechEnabledMultilineInput
+                value={frozenShoulderTreatmentPlan}
+                onChangeText={setFrozenShoulderTreatmentPlan}
+                numberOfLines={3}
+                {...withAiContext('treatment', 'Frozen shoulder treatment plan.', 'Use actionable treatment-oriented language.')}
+              />
 
               <Text style={allStyles.label}>Exercises</Text>
-              <SpeechEnabledMultilineInput value={frozenShoulderExercises} onChangeText={setFrozenShoulderExercises} numberOfLines={3} />
+              <SpeechEnabledMultilineInput
+                value={frozenShoulderExercises}
+                onChangeText={setFrozenShoulderExercises}
+                numberOfLines={3}
+                {...withAiContext('treatment', 'Frozen shoulder exercise recommendations.', 'Use clear home-exercise instructions.')}
+              />
 
               <Text style={allStyles.label}>Precautions</Text>
-              <SpeechEnabledMultilineInput value={frozenShoulderPrecautions} onChangeText={setFrozenShoulderPrecautions} numberOfLines={3} />
+              <SpeechEnabledMultilineInput
+                value={frozenShoulderPrecautions}
+                onChangeText={setFrozenShoulderPrecautions}
+                numberOfLines={3}
+                {...withAiContext('dos_donts', 'Frozen shoulder precautions and restrictions.', 'Use clear do and do-not guidance.')}
+              />
             </>
           ) : null}
 
@@ -1345,7 +1414,12 @@ export function BaseRecordTemplateModal({
               </View>
 
               <Text style={allStyles.label}>Diagnosis</Text>
-              <SpeechEnabledMultilineInput value={dentalDiagnosis} onChangeText={setDentalDiagnosis} numberOfLines={3} />
+              <SpeechEnabledMultilineInput
+                value={dentalDiagnosis}
+                onChangeText={setDentalDiagnosis}
+                numberOfLines={3}
+                {...withAiContext('assessment', 'Dental prescription diagnosis.', 'Use concise clinical diagnosis wording.')}
+              />
 
               <Text style={allStyles.label}>Clinical Examination (comma separated)</Text>
               <TextInput value={dentalClinicalExaminationCsv} onChangeText={setDentalClinicalExaminationCsv} style={allStyles.input} placeholder="e.g. Caries UL6, Tenderness" />
@@ -1363,7 +1437,12 @@ export function BaseRecordTemplateModal({
               <TextInput value={dentalMedicinesCsv} onChangeText={setDentalMedicinesCsv} style={allStyles.input} placeholder="e.g. Amoxicillin 500mg" />
 
               <Text style={allStyles.label}>Additional Notes</Text>
-              <SpeechEnabledMultilineInput value={dentalAdditionalNotes} onChangeText={setDentalAdditionalNotes} numberOfLines={3} />
+              <SpeechEnabledMultilineInput
+                value={dentalAdditionalNotes}
+                onChangeText={setDentalAdditionalNotes}
+                numberOfLines={3}
+                {...withAiContext('other', 'Dental additional clinician notes.', 'Use concise professional clinical tone.')}
+              />
 
               <Text style={allStyles.label}>Follow-up Date</Text>
               <TextInput value={dentalFollowupDate} onChangeText={setDentalFollowupDate} style={allStyles.input} placeholder="YYYY-MM-DD" />
@@ -1407,10 +1486,20 @@ export function BaseRecordTemplateModal({
               <TextInput value={labReportDate} onChangeText={setLabReportDate} style={allStyles.input} placeholder="YYYY-MM-DD" />
 
               <Text style={allStyles.label}>Collection Notes</Text>
-              <SpeechEnabledMultilineInput value={labCollectionNotes} onChangeText={setLabCollectionNotes} numberOfLines={3} />
+              <SpeechEnabledMultilineInput
+                value={labCollectionNotes}
+                onChangeText={setLabCollectionNotes}
+                numberOfLines={3}
+                {...withAiContext('assessment', 'Lab sample collection notes.', 'Use objective sample collection wording.')}
+              />
 
               <Text style={allStyles.label}>Additional Notes</Text>
-              <SpeechEnabledMultilineInput value={labAdditionalNotes} onChangeText={setLabAdditionalNotes} numberOfLines={3} />
+              <SpeechEnabledMultilineInput
+                value={labAdditionalNotes}
+                onChangeText={setLabAdditionalNotes}
+                numberOfLines={3}
+                {...withAiContext('other', 'Lab report additional notes.', 'Use concise professional lab note style.')}
+              />
 
               <Text style={allStyles.label}>Quick Add Tests (comma separated)</Text>
               <TextInput value={labSelectedTestsCsv} onChangeText={setLabSelectedTestsCsv} style={allStyles.input} placeholder="Hematology, Biochemistry" />
@@ -1472,6 +1561,7 @@ export function BaseRecordTemplateModal({
                         value={test.referenceText}
                         onChangeText={(value) => updateLabTestField(testIndex, 'referenceText', value)}
                         numberOfLines={3}
+                        {...withAiContext('assessment', 'Lab test reference text.', 'Use concise clinical-lab wording.')}
                       />
 
                       <View style={allStyles.typeRow}>
@@ -1546,6 +1636,7 @@ export function BaseRecordTemplateModal({
                             value={parameter.notes}
                             onChangeText={(value) => updateLabParameterField(testIndex, parameterIndex, 'notes', value)}
                             numberOfLines={2}
+                            {...withAiContext('assessment', 'Lab parameter notes.', 'Use concise interpretation-oriented wording.')}
                           />
 
                           <Text style={allStyles.label}>Selected</Text>
@@ -1571,7 +1662,13 @@ export function BaseRecordTemplateModal({
           {selectedTemplate === 'generalNotes' ? (
             <>
               <Text style={allStyles.label}>General Notes</Text>
-              <SpeechEnabledMultilineInput value={generalNoteText} onChangeText={setGeneralNoteText} numberOfLines={6} placeholder="Add your note" />
+              <SpeechEnabledMultilineInput
+                value={generalNoteText}
+                onChangeText={setGeneralNoteText}
+                numberOfLines={6}
+                placeholder="Add your note"
+                {...withAiContext('other', 'General clinical note.', 'Use concise professional clinical tone.')}
+              />
             </>
           ) : null}
 
@@ -1594,10 +1691,20 @@ export function BaseRecordTemplateModal({
               </View>
 
               <Text style={allStyles.label}>Treatment Notes</Text>
-              <SpeechEnabledMultilineInput value={physioTxTreatmentNotes} onChangeText={setPhysioTxTreatmentNotes} numberOfLines={4} />
+              <SpeechEnabledMultilineInput
+                value={physioTxTreatmentNotes}
+                onChangeText={setPhysioTxTreatmentNotes}
+                numberOfLines={4}
+                {...withAiContext('treatment', 'Physiotherapy treatment notes.', 'Use concise treatment-session language.')}
+              />
 
               <Text style={allStyles.label}>Progress Notes</Text>
-              <SpeechEnabledMultilineInput value={physioTxProgressNotes} onChangeText={setPhysioTxProgressNotes} numberOfLines={4} />
+              <SpeechEnabledMultilineInput
+                value={physioTxProgressNotes}
+                onChangeText={setPhysioTxProgressNotes}
+                numberOfLines={4}
+                {...withAiContext('assessment', 'Physiotherapy progress notes.', 'Use objective progress-focused phrasing.')}
+              />
             </>
           ) : null}
 
@@ -1613,7 +1720,7 @@ export function BaseRecordTemplateModal({
 
           </ScrollView>
 
-          <View style={allStyles.modalFooter}>
+          <View style={[allStyles.modalFooter, { paddingBottom: Math.max(14, insets.bottom + 14) }]}>
             <Pressable
               style={[allStyles.filterButton, allStyles.modalFooterButton, saving ? allStyles.disabledButton : null]}
               disabled={saving}

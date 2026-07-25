@@ -1,5 +1,5 @@
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
-import { Button, Surface, Text } from 'react-native-paper';
+import { Button, Divider, Surface, Text } from 'react-native-paper';
 import { themeColors } from '../theme/colors';
 
 interface ProfileMenuProps {
@@ -23,10 +23,19 @@ export function ProfileMenu({
         <Pressable style={styles.backdrop} onPress={onClose} />
 
         <Surface style={styles.menuCard} elevation={2}>
+          <Text style={styles.sectionLabel}>Account</Text>
           <Text style={styles.name}>{displayName}</Text>
           <Text style={styles.email}>{email}</Text>
 
-          <Button mode="contained" onPress={onSignOut} buttonColor={themeColors.secondary}>
+          <Divider style={styles.divider} />
+
+          <Button
+            mode="contained"
+            onPress={onSignOut}
+            buttonColor={themeColors.secondary}
+            contentStyle={styles.signOutButtonContent}
+            labelStyle={styles.signOutButtonLabel}
+          >
             Sign out
           </Button>
         </Surface>
@@ -49,24 +58,44 @@ const styles = StyleSheet.create({
   },
   menuCard: {
     position: 'absolute',
-    top: 90,
+    top: 94,
     right: 18,
     width: 260,
-    borderRadius: 16,
+    borderRadius: 14,
     backgroundColor: themeColors.surface,
     borderWidth: 1,
     borderColor: themeColors.border,
-    padding: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  sectionLabel: {
+    color: themeColors.textSecondary,
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: 8,
   },
   name: {
     color: themeColors.textPrimary,
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '700',
     marginBottom: 4,
   },
   email: {
     color: themeColors.textSecondary,
     fontSize: 13,
+    marginBottom: 10,
+  },
+  divider: {
     marginBottom: 12,
+    backgroundColor: themeColors.border,
+  },
+  signOutButtonContent: {
+    minHeight: 42,
+  },
+  signOutButtonLabel: {
+    fontSize: 14,
+    fontWeight: '700',
   },
 });
