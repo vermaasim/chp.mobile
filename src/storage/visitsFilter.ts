@@ -1,16 +1,8 @@
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
-import type { DateFilterOption } from '../utils/dateRangeFilter';
+import type { VisitFilterPreference } from '../types/visits';
 
-export type WorklistDateFilterOption = DateFilterOption;
-
-export interface WorklistDateFilterPreference {
-  option: WorklistDateFilterOption;
-  fromDate: string;
-  toDate: string;
-}
-
-const FILTER_KEY = 'chp.mobile.worklist.datefilter';
+const FILTER_KEY = 'chp.mobile.visits.datefilter';
 
 function getWebStorage() {
   if (Platform.OS !== 'web') {
@@ -20,7 +12,7 @@ function getWebStorage() {
   return globalThis.localStorage ?? null;
 }
 
-export async function saveWorklistDateFilterPreference(preference: WorklistDateFilterPreference) {
+export async function saveVisitsDateFilterPreference(preference: VisitFilterPreference) {
   const serialized = JSON.stringify(preference);
   const webStorage = getWebStorage();
 
@@ -32,7 +24,7 @@ export async function saveWorklistDateFilterPreference(preference: WorklistDateF
   await SecureStore.setItemAsync(FILTER_KEY, serialized);
 }
 
-export async function loadWorklistDateFilterPreference(): Promise<WorklistDateFilterPreference | null> {
+export async function loadVisitsDateFilterPreference(): Promise<VisitFilterPreference | null> {
   const webStorage = getWebStorage();
 
   const serialized = webStorage
@@ -44,7 +36,7 @@ export async function loadWorklistDateFilterPreference(): Promise<WorklistDateFi
   }
 
   try {
-    return JSON.parse(serialized) as WorklistDateFilterPreference;
+    return JSON.parse(serialized) as VisitFilterPreference;
   } catch {
     return null;
   }

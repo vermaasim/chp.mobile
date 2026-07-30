@@ -7,9 +7,15 @@ import { AttendancePanel } from '../components/AttendancePanel';
 import { FacilitySwitchModal } from '../components/FacilitySwitchModal';
 import { InfoPlaceholder } from '../components/InfoPlaceholder';
 import { MyTasksPanel } from '../components/MyTasksPanel';
+import { NewPatientPanel } from '../components/NewPatientPanel';
+import { NewVisitPanel } from '../components/NewVisitPanel';
+import { PatientDetailsPanel } from '../components/PatientDetailsPanel';
+import { PatientsPanel } from '../components/PatientsPanel';
 import { ProfileMenu } from '../components/ProfileMenu';
 import { SideMenu, type SideMenuItem } from '../components/SideMenu';
 import { TaskDetailsPanel } from '../components/TaskDetailsPanel';
+import { VisitDetailsPanel } from '../components/VisitDetailsPanel';
+import { VisitsPanel } from '../components/VisitsPanel';
 import { TodaySummaryCards, type TodaySummaryCardItem } from '../components/home/TodaySummaryCards';
 import { themeColors } from '../theme/colors';
 import type { AuthSession } from '../types/auth';
@@ -25,7 +31,7 @@ function buildDisplayName(user: AuthSession) {
 }
 
 type ModulePageKey = 'My Tasks' | 'My Attendance' | 'Patients' | 'Enquiries' | 'Visits' | 'Billing';
-type PageKey = 'Home' | ModulePageKey | 'Task Details';
+type PageKey = 'Home' | ModulePageKey | 'Task Details' | 'Visit Details' | 'New Visit' | 'Patient Details' | 'New Patient';
 
 type ModuleConfig = {
   key: ModulePageKey;
@@ -144,6 +150,8 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
   const insets = useSafeAreaInsets();
   const [pageStack, setPageStack] = useState<PageKey[]>(['Home']);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [selectedVisitId, setSelectedVisitId] = useState<string | null>(null);
+  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [isMenuVisible, setIsMenuVisible] = useState(false);
   const [isProfileMenuVisible, setIsProfileMenuVisible] = useState(false);
   const [isFacilityModalVisible, setIsFacilityModalVisible] = useState(false);
@@ -195,6 +203,8 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
     if (page === 'Home') {
       setPageStack(['Home']);
       setSelectedTaskId(null);
+      setSelectedVisitId(null);
+      setSelectedPatientId(null);
       return;
     }
 
@@ -227,6 +237,24 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
     setPageStack(['Home', 'My Tasks', 'Task Details']);
   };
 
+  const openVisitDetails = (visitId: string) => {
+    setSelectedVisitId(visitId);
+    setPageStack(['Home', 'Visits', 'Visit Details']);
+  };
+
+  const openNewVisit = () => {
+    setPageStack(['Home', 'Visits', 'New Visit']);
+  };
+
+  const openPatientDetails = (patientId: string) => {
+    setSelectedPatientId(patientId);
+    setPageStack(['Home', 'Patients', 'Patient Details']);
+  };
+
+  const openNewPatient = () => {
+    setPageStack(['Home', 'Patients', 'New Patient']);
+  };
+
   const renderPageContent = () => {
     if (activePage === 'My Tasks') {
       if (!user.selectedFacility?.id) {
@@ -257,11 +285,91 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
       );
     }
 
+    if (activePage === 'Visits') {
+      if (!user.selectedFacility?.id) {
+        return <InfoPlaceholder title="Visits" />;
+      }
+
+      return (
+        <VisitsPanel
+          token={user.token}
+          facilityId={user.selectedFacility.id}
+          onOpenVisitDetails={openVisitDetails}
+          onOpenCreateVisit={openNewVisit}
+        />
+      );
+    }
+
+    if (activePage === 'Visit Details') {
+      if (!user.selectedFacility?.id || !selectedVisitId) {
+        return <InfoPlaceholder title="Visit Details" />;
+      }
+
+      return (
+        <VisitDetailsPanel token={user.token} facilityId={user.selectedFacility.id} visitId={selectedVisitId} />
+      );
+    }
+
+    if (activePage === 'New Visit') {
+      if (!user.selectedFacility?.id) {
+        return <InfoPlaceholder title="New Visit" />;
+      }
+
+      return (
+        <NewVisitPanel
+          token={user.token}
+          facilityId={user.selectedFacility.id}
+          onCancel={() => setPageStack(['Home', 'Visits'])}
+          onSaved={() => setPageStack(['Home', 'Visits'])}
+        />
+      );
+    }
+
     if (activePage === 'My Attendance') {
       return <AttendancePanel />;
     }
 
-    if (activePage === 'Patients' || activePage === 'Enquiries' || activePage === 'Visits' || activePage === 'Billing') {
+    if (activePage === 'Patients') {
+      if (!user.selectedFacility?.id) {
+        return <InfoPlaceholder title="Patients" />;
+      }
+
+      return (
+        <PatientsPanel
+          token={user.token}
+          facilityId={user.selectedFacility.id}
+          onOpenPatientDetails={openPatientDetails}
+          onOpenCreatePatient={openNewPatient}
+        />
+      );
+    }
+
+    if (activePage === 'Patient Details') {
+      if (!user.selectedFacility?.id || !selectedPatientId) {
+        return <InfoPlaceholder title="Patient Details" />;
+      }
+
+      return (
+        <PatientDetailsPanel token={user.token} facilityId={user.selectedFacility.id} patientId={selectedPatientId} />
+      );
+    }
+
+    if (activePage === 'New Patient') {
+      if (!user.selectedFacility?.id) {
+        return <InfoPlaceholder title="New Patient" />;
+      }
+
+      return (
+        <NewPatientPanel
+          token={user.token}
+          facilityId={user.selectedFacility.id}
+          onCancel={() => setPageStack(['Home', 'Patients'])}
+          onSaved={() => setPageStack(['Home', 'Patients'])}
+        />
+      );
+    }
+
+    if (activePage === 'Enquiries' || activePage === 'Billing') {
       return <InfoPlaceholder title={activePage} />;
     }
 

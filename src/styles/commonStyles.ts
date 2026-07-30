@@ -11,6 +11,15 @@ export const allStyles = StyleSheet.create({
     minHeight: 320,
     height: '100%',
   },
+  sectionContainer: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: themeColors.border,
+    backgroundColor: themeColors.surface,
+    paddingVertical: 5,
+    paddingHorizontal: 5,
+  }
+  ,
   filterCard: {
     borderRadius: 12,
     borderWidth: 1,
@@ -54,7 +63,7 @@ export const allStyles = StyleSheet.create({
     gap: 8,
   },
   filterSummaryRow: {
-    flexDirection: 'column',
+    flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     marginBottom: 6,
@@ -67,6 +76,11 @@ export const allStyles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 7,
     gap: 2,
+  },
+  sectionDivider: {
+    backgroundColor: themeColors.border,
+    height: 1,
+    marginVertical: 10,
   },
   selectedFilterLabel: {
     color: themeColors.textSecondary,
