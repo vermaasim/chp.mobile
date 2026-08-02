@@ -1,33 +1,53 @@
-import { StyleSheet, View } from 'react-native';
-import { Text } from 'react-native-paper';
+import { useMemo, useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { IconButton, Text } from 'react-native-paper';
 import { themeColors } from '../../theme/colors';
 
 export interface TodaySummaryCardItem {
   key: string;
   label: string;
   value: string;
+  metric?: string;
 }
 
 interface TodaySummaryCardsProps {
   items: TodaySummaryCardItem[];
+  onSelectItem?: (item: TodaySummaryCardItem) => void;
 }
 
-export function TodaySummaryCards({ items }: TodaySummaryCardsProps) {
+const DEFAULT_VISIBLE_ITEMS = 4;
+
+export function TodaySummaryCards({ items, onSelectItem }: TodaySummaryCardsProps) {
+  const [expanded, setExpanded] = useState(false);
+  const visibleItems = useMemo(() => (expanded ? items : items.slice(0, DEFAULT_VISIBLE_ITEMS)), [expanded, items]);
+  const shouldShowToggle = items.length > DEFAULT_VISIBLE_ITEMS;
+
   return (
-    <View style={styles.row}>
-      {items.map((item) => (
-        <View key={item.key} style={styles.pill}>
-          <Text style={styles.label}>{item.label}</Text>
-          <Text numberOfLines={1} style={styles.value}>{item.value}</Text>
-        </View>
-      ))}
+    <View style={styles.wrapper}>
+      <View style={styles.row}>
+        {visibleItems.map((item) => (
+          <Pressable key={item.key} style={styles.pill} onPress={() => onSelectItem?.(item)}>
+            <Text style={styles.label}>{item.label}</Text>
+            <Text numberOfLines={1} style={styles.value}>{item.value}</Text>
+          </Pressable>
+        ))}
+      </View>
+      {shouldShowToggle ? (
+        <Pressable style={styles.toggleRow} onPress={() => setExpanded((prev) => !prev)}>
+          <Text style={styles.toggleText}>{expanded ? 'View less' : 'View more'}</Text>
+          <IconButton icon={expanded ? 'chevron-up' : 'chevron-down'} size={16} style={styles.toggleIcon} />
+        </Pressable>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  row: {
+  wrapper: {
     marginTop: 10,
+    gap: 8,
+  },
+  row: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
@@ -52,5 +72,20 @@ const styles = StyleSheet.create({
     color: themeColors.textPrimary,
     fontSize: 15,
     fontWeight: '700',
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 2,
+    alignSelf: 'flex-end',
+  },
+  toggleText: {
+    color: themeColors.primary,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  toggleIcon: {
+    margin: 0,
   },
 });
