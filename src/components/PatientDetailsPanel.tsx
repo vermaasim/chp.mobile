@@ -5,7 +5,7 @@ import { Feather } from '@expo/vector-icons';
 import { loadPatientDetails } from '../api/patients';
 import { loadServiceLinkedRecords } from '../api/records';
 import { loadVisitLinkedServices } from '../api/visits';
-import { taskDetailsPanelStyles } from '../styles/commonStyles';
+import { allStyles, taskDetailsPanelStyles } from '../styles/commonStyles';
 import { themeColors } from '../theme/colors';
 import type { PatientDetail, PatientVisitSummary } from '../types/patients';
 import type { VisitLinkedService } from '../types/visits';

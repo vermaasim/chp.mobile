@@ -1,7 +1,5 @@
-import { loadPatientsByCreatedDateRange } from './patients';
-import { loadFacilityVisits, loadVisitDetails } from './visits';
-import { loadMyAssignedServices } from './worklist';
-import { formatDateInput, toUtcIsoRange } from '../utils/dateRangeFilter';
+import axios from 'axios';
+import { API_BASE_URL } from './config';
 
 export type SummaryMetricKey = 'allTasks' | 'incompleteTasks' | 'myTasks' | 'newPatients' | 'payments' | 'enquiries' | 'visits';
 
@@ -14,28 +12,70 @@ export interface SummaryCardItem {
   metric: SummaryMetricKey;
 }
 
-function getTodayDateRange() {
-  const today = new Date();
-  const fromDate = formatDateInput(today);
-  const toDate = formatDateInput(today);
-
-  return toUtcIsoRange(fromDate, toDate);
+interface TodaySummaryResponse {
+  facilityId?: string;
+  generatedOn?: string;
+  fromDateTimeInUTC?: string;
+  toDateTimeInUTC?: string;
+  newPatientsCount?: number | null;
+  allTasksCount?: number | null;
+  myTasksCount?: number | null;
+  incompleteTasksCount?: number | null;
+  enquiriesCount?: number | null;
+  paymentsTotal?: number | null;
 }
 
-function formatCurrency(value: number) {
+const apiClient = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  },
+});
+
+function withAuth(token: string) {
+  return {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  };
+}
+
+function toFriendlyErrorMessage(error: unknown, fallback: string) {
+  if (!axios.isAxiosError(error)) {
+    return fallback;
+  }
+
+  const responseData = error.response?.data;
+
+  if (typeof responseData === 'string') {
+    return responseData;
+  }
+
+  if (responseData && typeof responseData === 'object') {
+    if ('message' in responseData && typeof responseData.message === 'string') {
+      return responseData.message;
+    }
+
+    if ('title' in responseData && typeof responseData.title === 'string') {
+      return responseData.title;
+    }
+  }
+
+  return fallback;
+}
+
+function formatCount(value?: number | null) {
+  return value == null ? '0' : `${value}`;
+}
+
+function formatCurrency(value?: number | null) {
+  const numericValue = typeof value === 'number' ? value : 0;
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
     maximumFractionDigits: 0,
-  }).format(value);
-}
-
-function normalizeStatus(status?: string) {
-  return status?.trim().toLowerCase() ?? '';
-}
-
-function isTaskIncomplete(status?: string) {
-  return normalizeStatus(status) !== 'completed';
+  }).format(numericValue);
 }
 
 export async function loadTodaySummaryItems(token: string, facilityId: string, role: SummaryRole): Promise<SummaryCardItem[]> {
@@ -43,58 +83,45 @@ export async function loadTodaySummaryItems(token: string, facilityId: string, r
     return [];
   }
 
-  const { from, to } = getTodayDateRange();
+  try {
+    const response = await apiClient.post<TodaySummaryResponse>(
+      '/api/todays-summary/get-summary',
+      { facilityId },
+      withAuth(token),
+    );
 
-  const [services, patients, visits] = await Promise.all([
-    loadMyAssignedServices(token, facilityId, from, to),
-    loadPatientsByCreatedDateRange(token, facilityId, formatDateInput(new Date()), formatDateInput(new Date())),
-    loadFacilityVisits(token, facilityId, {
-      from,
-      to,
-      statusList: [],
-    }),
-  ]);
+    const summary = response.data ?? {};
+    const newPatientsCount = formatCount(summary.newPatientsCount);
+    const allTasksCount = formatCount(summary.allTasksCount);
+    const myTasksCount = formatCount(summary.myTasksCount);
+    const incompleteTasksCount = formatCount(summary.incompleteTasksCount);
+    const enquiriesCount = formatCount(summary.enquiriesCount);
+    const paymentsValue = formatCurrency(summary.paymentsTotal);
 
-  const allTasksCount = services.length;
-  const incompleteTasksCount = services.filter((service) => isTaskIncomplete(service.status)).length;
-  const newPatientsCount = patients.length;
-
-  const paymentTotal = await visits.reduce(async (memoPromise, visit) => {
-    const memo = await memoPromise;
-
-    if (!visit.id) {
-      return memo;
+    if (role === 'physician') {
+      return [
+        { key: 'my-tasks', label: 'My Tasks', value: myTasksCount, metric: 'myTasks' },
+        { key: 'incomplete-tasks', label: 'Pending Tasks', value: incompleteTasksCount, metric: 'incompleteTasks' },
+        { key: 'new-patients', label: 'New Patients', value: newPatientsCount, metric: 'newPatients' },
+      ];
     }
 
-    try {
-      const detail = await loadVisitDetails(token, facilityId, visit.id);
-      return memo + (detail.advanceAmount ?? 0);
-    } catch {
-      return memo;
+    if (role === 'frontdesk') {
+      return [
+        { key: 'all-tasks', label: 'All Tasks', value: allTasksCount, metric: 'allTasks' },
+        { key: 'new-patients', label: 'New Patients', value: newPatientsCount, metric: 'newPatients' },
+        { key: 'enquiries', label: 'Enquiries', value: enquiriesCount, metric: 'enquiries' },
+      ];
     }
-  }, Promise.resolve(0));
 
-  if (role === 'physician') {
     return [
-      { key: 'my-tasks', label: 'My Tasks', value: `${allTasksCount}`, metric: 'myTasks' },
-      { key: 'incomplete-tasks', label: 'Incomplete Tasks', value: `${incompleteTasksCount}`, metric: 'incompleteTasks' },
-      { key: 'new-patients', label: 'New Patients', value: `${newPatientsCount}`, metric: 'newPatients' },
+      { key: 'all-tasks', label: 'All Tasks', value: allTasksCount, metric: 'allTasks' },
+      { key: 'incomplete-tasks', label: 'Pending Tasks', value: incompleteTasksCount, metric: 'incompleteTasks' },
+      { key: 'new-patients', label: 'New Patients', value: newPatientsCount, metric: 'newPatients' },
+      { key: 'payments', label: 'Payments', value: paymentsValue, metric: 'payments' },
+      { key: 'enquiries', label: 'Enquiries', value: enquiriesCount, metric: 'enquiries' },
     ];
+  } catch (error) {
+    throw new Error(toFriendlyErrorMessage(error, 'Unable to load today summary.'));
   }
-
-  if (role === 'frontdesk') {
-    return [
-      { key: 'all-tasks', label: 'All Tasks', value: `${allTasksCount}`, metric: 'allTasks' },
-      { key: 'new-patients', label: 'New Patients', value: `${newPatientsCount}`, metric: 'newPatients' },
-      { key: 'enquiries', label: 'Enquiries', value: '0', metric: 'enquiries' },
-    ];
-  }
-
-  return [
-    { key: 'all-tasks', label: 'All Tasks', value: `${allTasksCount}`, metric: 'allTasks' },
-    { key: 'incomplete-tasks', label: 'Incomplete Tasks', value: `${incompleteTasksCount}`, metric: 'incompleteTasks' },
-    { key: 'new-patients', label: 'New Patients', value: `${newPatientsCount}`, metric: 'newPatients' },
-    { key: 'payments', label: 'Payments', value: formatCurrency(paymentTotal), metric: 'payments' },
-    { key: 'enquiries', label: 'Enquiries', value: '0', metric: 'enquiries' },
-  ];
 }

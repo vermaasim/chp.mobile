@@ -17,6 +17,7 @@ interface SummaryDetailModalProps {
   token: string;
   facilityId: string;
   onClose: () => void;
+  onSelectItem?: (selection: { kind: 'task' | 'patient' | 'visit'; id: string }) => void;
 }
 
 interface DetailListItem {
@@ -41,7 +42,7 @@ function formatPatientLabel(item: PatientSummary) {
   return [item.prefix, item.firstName, item.lastName].filter(Boolean).join(' ').trim() || 'Unnamed patient';
 }
 
-export function SummaryDetailModal({ visible, title, metric, token, facilityId, onClose }: SummaryDetailModalProps) {
+export function SummaryDetailModal({ visible, title, metric, token, facilityId, onClose, onSelectItem }: SummaryDetailModalProps) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<DetailListItem[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -196,12 +197,31 @@ export function SummaryDetailModal({ visible, title, metric, token, facilityId, 
               data={data}
               keyExtractor={(item) => item.id}
               contentContainerStyle={styles.listContent}
-              renderItem={({ item }) => (
-                <View style={styles.listItem}>
-                  <Text style={styles.listPrimary}>{item.primaryText}</Text>
-                  {item.secondaryText ? <Text style={styles.listSecondary}>{item.secondaryText}</Text> : null}
-                </View>
-              )}
+              renderItem={({ item }) => {
+                const handlePress = () => {
+                  onClose();
+                  if (metric === 'allTasks' || metric === 'incompleteTasks' || metric === 'myTasks') {
+                    onSelectItem?.({ kind: 'task', id: item.id });
+                    return;
+                  }
+
+                  if (metric === 'newPatients') {
+                    onSelectItem?.({ kind: 'patient', id: item.id });
+                    return;
+                  }
+
+                  if (metric === 'visits') {
+                    onSelectItem?.({ kind: 'visit', id: item.id });
+                  }
+                };
+
+                return (
+                  <Pressable accessibilityRole="button" onPress={handlePress} style={styles.listItem}>
+                    <Text style={styles.listPrimary}>{item.primaryText}</Text>
+                    {item.secondaryText ? <Text style={styles.listSecondary}>{item.secondaryText}</Text> : null}
+                  </Pressable>
+                );
+              }}
             />
           ) : null}
         </View>
@@ -214,10 +234,11 @@ const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
     justifyContent: 'flex-end',
-    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    backgroundColor: 'rgba(15, 23, 42, 0.18)',
   },
   sheet: {
-    maxHeight: '80%',
+    maxHeight: '78%',
+    marginBottom: 0,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     backgroundColor: themeColors.surface,

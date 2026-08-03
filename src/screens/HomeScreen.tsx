@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Avatar, Card, Divider, IconButton, Text } from 'react-native-paper';
+import { Divider, IconButton, Text } from 'react-native-paper';
+import { loadTodaySummaryItems, type SummaryMetricKey, type SummaryRole } from '../api/summary';
 import { AppBar } from '../components/AppBar';
 import { AttendancePanel } from '../components/AttendancePanel';
 import { FacilitySwitchModal } from '../components/FacilitySwitchModal';
@@ -16,7 +17,8 @@ import { SideMenu, type SideMenuItem } from '../components/SideMenu';
 import { TaskDetailsPanel } from '../components/TaskDetailsPanel';
 import { VisitDetailsPanel } from '../components/VisitDetailsPanel';
 import { VisitsPanel } from '../components/VisitsPanel';
-import { TodaySummaryCards, type TodaySummaryCardItem } from '../components/home/TodaySummaryCards';
+import { HomeDashboard, type HomeDashboardModule, type HomeDashboardQuickAction, type HomeDashboardSummaryItem } from '../components/home/HomeDashboard';
+import { SummaryDetailModal } from '../components/home/SummaryDetailModal';
 import { themeColors } from '../theme/colors';
 import type { AuthSession } from '../types/auth';
 
@@ -87,17 +89,6 @@ const ROLE_MODULES: Record<NormalizedRole, ModulePageKey[]> = {
   frontdesk: ['My Attendance', 'Enquiries', 'Patients', 'Visits'],
 };
 
-const ORG_ADMIN_SUMMARY_ITEMS: TodaySummaryCardItem[] = [
-  { key: 'total-visits', label: 'Total Visits', value: '--' },
-  { key: 'new-patients', label: 'New Patients', value: '--' },
-  { key: 'billed-collected', label: 'Billed vs Collected', value: '-- / --' },
-];
-
-const PHYSICIAN_SUMMARY_ITEMS: TodaySummaryCardItem[] = [
-  { key: 'my-tasks', label: 'My Tasks', value: '--' },
-  { key: 'pending-tasks', label: 'Pending Tasks', value: '--' },
-];
-
 function normalizeRoleName(value: string): NormalizedRole | null {
   const normalized = value?.trim().toLowerCase();
   if (normalized === 'facilityadmin' || normalized === 'physician' || normalized === 'frontdesk') {
@@ -155,19 +146,72 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
   const [isMenuVisible, setIsMenuVisible] = useState(false);
   const [isProfileMenuVisible, setIsProfileMenuVisible] = useState(false);
   const [isFacilityModalVisible, setIsFacilityModalVisible] = useState(false);
+  const [isSummaryModalVisible, setIsSummaryModalVisible] = useState(false);
+  const [selectedSummaryMetric, setSelectedSummaryMetric] = useState<SummaryMetricKey | null>(null);
+  const [selectedSummaryTitle, setSelectedSummaryTitle] = useState('');
+  const [summaryItems, setSummaryItems] = useState<HomeDashboardSummaryItem[]>([
+    { key: 'tasks', label: 'Tasks', value: '0', metric: 'allTasks' },
+    { key: 'new-patients', label: 'New patients', value: '0', metric: 'newPatients' },
+    { key: 'enquiries', label: 'Enquiries', value: '0', metric: 'enquiries' },
+  ]);
 
   const activePage = pageStack[pageStack.length - 1];
   const activeFacilityName = user.selectedFacility?.name ?? user.companyName;
-  const prescriptionTypesCount = getAllowedPrescriptionTypes(user)?.length ?? 0;
   const visibleModules = useMemo(() => getVisibleModules(user), [user]);
   const visibleModuleSet = useMemo(() => new Set(visibleModules), [visibleModules]);
-  const isFacilityAdmin = useMemo(() => getVisibleRoles(user).includes('facilityadmin'), [user]);
-  const summaryItems = useMemo(() => {
-    if (isFacilityAdmin) {
-      return ORG_ADMIN_SUMMARY_ITEMS;
+
+  const primaryRole = useMemo<SummaryRole | null>(() => {
+    const roles = getVisibleRoles(user);
+    if (roles.includes('facilityadmin')) {
+      return 'facilityadmin';
     }
-    return PHYSICIAN_SUMMARY_ITEMS;
-  }, [isFacilityAdmin]);
+
+    if (roles.includes('physician')) {
+      return 'physician';
+    }
+
+    if (roles.includes('frontdesk')) {
+      return 'frontdesk';
+    }
+
+    return null;
+  }, [user]);
+
+  useEffect(() => {
+    const token = user.token;
+    const facilityId = user.selectedFacility?.id;
+
+    if (!token || !facilityId || !primaryRole) {
+      setSummaryItems([
+        { key: 'tasks', label: 'Tasks', value: '0', metric: 'allTasks' },
+        { key: 'new-patients', label: 'New patients', value: '0', metric: 'newPatients' },
+        { key: 'enquiries', label: 'Enquiries', value: '0', metric: 'enquiries' },
+      ]);
+      return;
+    }
+
+    let isMounted = true;
+
+    loadTodaySummaryItems(token, facilityId, primaryRole)
+      .then((items) => {
+        if (isMounted) {
+          setSummaryItems(items);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setSummaryItems([
+            { key: 'tasks', label: 'Tasks', value: '0', metric: 'allTasks' },
+            { key: 'new-patients', label: 'New patients', value: '0', metric: 'newPatients' },
+            { key: 'enquiries', label: 'Enquiries', value: '0', metric: 'enquiries' },
+          ]);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [primaryRole, user.selectedFacility?.id, user.token]);
 
   const menuItems = useMemo<SideMenuItem[]>(() => {
     const coreItems: SideMenuItem[] = [
@@ -181,7 +225,7 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
     return coreItems;
   }, [visibleModules]);
 
-  const homeCards = useMemo(
+  const homeCards = useMemo<HomeDashboardModule[]>(
     () =>
       visibleModules.map((moduleKey) => {
         const config = MODULE_CONFIGS[moduleKey];
@@ -219,6 +263,16 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
     setPageStack((previousStack) => previousStack.slice(0, -1));
   };
 
+  const handleSummaryItemPress = (item: HomeDashboardSummaryItem) => {
+    if (!item.metric) {
+      return;
+    }
+
+    setSelectedSummaryMetric(item.metric as SummaryMetricKey);
+    setSelectedSummaryTitle(item.label);
+    setIsSummaryModalVisible(true);
+  };
+
   const handleSelectMenuItem = (key: string) => {
     if (key !== 'Home' && !(key in MODULE_CONFIGS)) {
       return;
@@ -254,6 +308,33 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
   const openNewPatient = () => {
     setPageStack(['Home', 'Patients', 'New Patient']);
   };
+
+  const quickActions = useMemo<HomeDashboardQuickAction[]>(
+    () => [
+      {
+        key: 'new-visit',
+        title: 'New visit',
+        subtitle: 'Log an appointment quickly',
+        icon: 'calendar-plus',
+        onPress: openNewVisit,
+      },
+      {
+        key: 'new-patient',
+        title: 'New patient',
+        subtitle: 'Create a fresh profile',
+        icon: 'account-plus',
+        onPress: openNewPatient,
+      },
+      {
+        key: 'add-action',
+        title: 'Add action',
+        subtitle: ' ',
+        icon: 'plus-box-outline',
+        onPress: () => undefined,
+      },
+    ],
+    [openNewVisit, openNewPatient],
+  );
 
   const renderPageContent = () => {
     if (activePage === 'My Tasks') {
@@ -373,70 +454,87 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
       return <InfoPlaceholder title={activePage} />;
     }
 
-    if (activePage === 'Home') {
-      return (
-        <ScrollView
-          style={styles.contentScroll}
-          contentContainerStyle={[styles.homeScrollContent, { paddingBottom: insets.bottom + 22 }]}
-          showsVerticalScrollIndicator={false}
-        >
-          <Card mode="outlined" style={styles.summaryCard}>
-            <Card.Content style={styles.summaryCardContent}>
-              <View style={styles.summaryTopRow}>
-                <Avatar.Icon
-                  size={52}
-                  icon="account"
-                  color={themeColors.textOnBrand}
-                  style={styles.summaryAvatar}
-                />
-
-                <View style={styles.summaryTextWrap}>
-                  <Text style={styles.summaryEyebrow}>Welcome</Text>
-                  <Text numberOfLines={1} style={styles.summaryHeading}>
-                    {'Dr. ' + (displayName ||  user.userName || 'Clinician')}
-                  </Text>
-                  <Text numberOfLines={2} style={styles.summarySubtitle}>
-                    {user.designation}
-                  </Text>
-                </View>
-              </View>
-
-              <TodaySummaryCards items={summaryItems} />
-            </Card.Content>
-          </Card>
-
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Core Modules</Text>
-            <Text style={styles.sectionCaption}>Choose a module to continue</Text>
-          </View>
-
-          <View style={styles.quickActionsColumn}>
-            {homeCards.map((item) => (
-              <Card
-                key={item.key}
-                mode="outlined"
-                onPress={item.onPress}
-                style={styles.quickActionCard}
-              >
-                <Card.Content style={styles.quickActionCardContent}>
-                  <View style={styles.quickActionIconWrap}>
-                    <IconButton icon={item.icon} size={22} iconColor={themeColors.primary} style={styles.quickActionIcon} />
-                  </View>
-                  <View style={styles.quickActionTextWrap}>
-                    <Text style={styles.quickActionTitle}>{item.title}</Text>
-                    <Text style={styles.quickActionSubtitle}>{item.subtitle}</Text>
-                  </View>
-                  <IconButton icon="chevron-right" size={20} iconColor={themeColors.textSecondary} />
-                </Card.Content>
-              </Card>
-            ))}
-          </View>
-        </ScrollView>
-      );
-    }
-
     return <InfoPlaceholder title={activePage} />;
   };
+
+  if (activePage === 'Home') {
+    return (
+      <SafeAreaView style={styles.homeScreen} edges={['top', 'left', 'right', 'bottom']}>
+        <HomeDashboard
+          brandTitle={activeFacilityName}
+          brandSubtitle="Click Health Pro"
+          displayName={displayName || user.userName || 'Clinician'}
+          quickActions={quickActions}
+          summaryItems={summaryItems}
+          modules={homeCards}
+          onMenuPress={() => setIsMenuVisible(true)}
+          onFacilityPress={() => setIsFacilityModalVisible(true)}
+          onProfilePress={() => setIsProfileMenuVisible(true)}
+          onSummaryItemPress={handleSummaryItemPress}
+          onHomePress={() => navigateRootPage('Home')}
+        />
+
+        <SideMenu
+          visible={isMenuVisible}
+          items={menuItems}
+          activeItemKey={activePage}
+          onSelectItem={handleSelectMenuItem}
+          onClose={() => setIsMenuVisible(false)}
+        />
+
+        <ProfileMenu
+          visible={isProfileMenuVisible}
+          displayName={displayName}
+          email={user.email}
+          onClose={() => setIsProfileMenuVisible(false)}
+          onSignOut={() => {
+            setIsProfileMenuVisible(false);
+            void onSignOut();
+          }}
+        />
+
+        <FacilitySwitchModal
+          visible={isFacilityModalVisible}
+          facilities={user.associatedFacilities}
+          selectedFacilityId={user.selectedFacility?.id ?? null}
+          onClose={() => setIsFacilityModalVisible(false)}
+          onConfirm={onSelectFacility}
+        />
+
+        {user.selectedFacility?.id && selectedSummaryMetric ? (
+          <SummaryDetailModal
+            visible={isSummaryModalVisible}
+            title={selectedSummaryTitle || 'Summary'}
+            metric={selectedSummaryMetric}
+            token={user.token}
+            facilityId={user.selectedFacility.id}
+            onClose={() => {
+              setIsSummaryModalVisible(false);
+              setSelectedSummaryMetric(null);
+              setSelectedSummaryTitle('');
+            }}
+            onSelectItem={(selection) => {
+              setIsSummaryModalVisible(false);
+              setSelectedSummaryMetric(null);
+              setSelectedSummaryTitle('');
+
+              if (selection.kind === 'task') {
+                openTaskDetails(selection.id);
+                return;
+              }
+
+              if (selection.kind === 'patient') {
+                openPatientDetails(selection.id);
+                return;
+              }
+
+              openVisitDetails(selection.id);
+            }}
+          />
+        ) : null}
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.screen} edges={['left', 'right', 'bottom']}>
@@ -505,6 +603,10 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: themeColors.appBackground,
+  },
+  homeScreen: {
+    flex: 1,
+    backgroundColor: themeColors.surface,
   },
   contentWrap: {
     flex: 1,
