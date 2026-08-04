@@ -59,7 +59,7 @@ export function HomeDashboard({
   return (
     <View style={styles.wrapper}>
       <ScrollView style={styles.scrollArea} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.headerRow}>
+        {/* <View style={styles.headerRow}>
           <Pressable accessibilityRole="button" accessibilityLabel="Open menu" onPress={onMenuPress} style={styles.headerAction}>
             <IconButton icon="menu" size={18} iconColor={themeColors.textSecondary} style={styles.headerActionIcon} />
           </Pressable>
@@ -82,7 +82,7 @@ export function HomeDashboard({
               <Avatar.Text size={36} label={avatarLabel} labelStyle={styles.avatarLabel} style={styles.avatar} />
             </Pressable>
           </View>
-        </View>
+        </View> */}
 
         <Card mode="outlined" style={styles.heroCard}>
           <Card.Content style={styles.heroContent}>
@@ -166,29 +166,7 @@ export function HomeDashboard({
         </View>
       </ScrollView>
 
-      <View style={styles.bottomNav}>
-        {[
-          { key: 'Home', label: 'Home', active: true },
-          { key: 'Search', label: 'Search', active: false },
-          { key: 'Alerts', label: 'Alerts', active: false },
-          { key: 'Profile', label: 'Profile', active: false },
-        ].map((item) => (
-          <Pressable
-            key={item.key}
-            style={styles.bottomNavItemWrap}
-            onPress={item.key === 'Home' ? onHomePress : undefined}
-            disabled={item.key !== 'Home' && !onHomePress}
-          >
-            <IconButton
-              icon={item.key === 'Home' ? 'home-outline' : item.key === 'Search' ? 'magnify' : item.key === 'Alerts' ? 'bell-outline' : 'account-outline'}
-              size={16}
-              iconColor={item.active ? themeColors.primary : themeColors.textSecondary}
-              style={styles.bottomNavIcon}
-            />
-            <Text style={item.active ? styles.bottomNavLabelActive : styles.bottomNavLabel}>{item.label}</Text>
-          </Pressable>
-        ))}
-      </View>
+      
     </View>
   );
 }
@@ -418,32 +396,5 @@ const styles = StyleSheet.create({
   moduleChevron: {
     margin: 0,
   },
-  bottomNav: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-around',
-    paddingTop: 10,
-    paddingBottom: 6,
-    borderTopWidth: 1,
-    borderTopColor: '#E8E1D8',
-    backgroundColor: themeColors.surface,
-  },
-  bottomNavItemWrap: {
-    alignItems: 'center',
-    gap: 1,
-    minWidth: 56,
-  },
-  bottomNavIcon: {
-    margin: 0,
-  },
-  bottomNavLabel: {
-    color: themeColors.textSecondary,
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  bottomNavLabelActive: {
-    color: themeColors.primary,
-    fontSize: 11,
-    fontWeight: '800',
-  },
+  
 });

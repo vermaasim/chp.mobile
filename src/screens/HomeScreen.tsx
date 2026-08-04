@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Divider, IconButton, Text } from 'react-native-paper';
+import { Avatar, Divider, IconButton, Text } from 'react-native-paper';
 import { loadTodaySummaryItems, type SummaryMetricKey, type SummaryRole } from '../api/summary';
 import { AppBar } from '../components/AppBar';
 import { AttendancePanel } from '../components/AttendancePanel';
@@ -242,6 +242,7 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
 
   const breadcrumbText = useMemo(() => pageStack.map(getBreadcrumbLabel).join(' / '), [pageStack]);
   const isBackDisabled = pageStack.length <= 1;
+  const isFullScreenFlow = activePage === 'New Visit' || activePage === 'New Patient';
 
   const navigateRootPage = (page: Exclude<PageKey, 'Task Details'> | ModulePageKey) => {
     if (page === 'Home') {
@@ -400,8 +401,12 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
         <NewVisitPanel
           token={user.token}
           facilityId={user.selectedFacility.id}
-          onCancel={() => setPageStack(['Home', 'Visits'])}
-          onSaved={() => setPageStack(['Home', 'Visits'])}
+          facilityName={activeFacilityName}
+          displayName={displayName || user.userName || 'Clinician'}
+          onMenuPress={() => setIsMenuVisible(true)}
+          onProfilePress={() => setIsProfileMenuVisible(true)}
+          onViewVisits={() => setPageStack(['Home', 'Visits'])}
+          onSaved={() => setPageStack(['Home'])}
         />
       );
     }
@@ -444,9 +449,95 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
         <NewPatientPanel
           token={user.token}
           facilityId={user.selectedFacility.id}
-          onCancel={() => setPageStack(['Home', 'Patients'])}
-          onSaved={() => setPageStack(['Home', 'Patients'])}
+          facilityName={activeFacilityName}
+          displayName={displayName || user.userName || 'Clinician'}
+          onMenuPress={() => setIsMenuVisible(true)}
+          onProfilePress={() => setIsProfileMenuVisible(true)}
+          onViewPatients={() => setPageStack(['Home', 'Patients'])}
+          onSaved={() => setPageStack(['Home'])}
         />
+      );
+    }
+
+    if (activePage === "Home") {
+      return (
+        <SafeAreaView
+          style={styles.homeScreen}
+          edges={["top", "left", "right", "bottom"]}
+        >
+          <HomeDashboard
+            brandTitle={activeFacilityName}
+            brandSubtitle="Click Health Pro"
+            displayName={displayName || user.userName || "Clinician"}
+            quickActions={quickActions}
+            summaryItems={summaryItems}
+            modules={homeCards}
+            onMenuPress={() => setIsMenuVisible(true)}
+            onFacilityPress={() => setIsFacilityModalVisible(true)}
+            onProfilePress={() => setIsProfileMenuVisible(true)}
+            onSummaryItemPress={handleSummaryItemPress}
+            onHomePress={() => navigateRootPage("Home")}
+          />
+
+          <SideMenu
+            visible={isMenuVisible}
+            items={menuItems}
+            activeItemKey={activePage}
+            onSelectItem={handleSelectMenuItem}
+            onClose={() => setIsMenuVisible(false)}
+          />
+
+          <ProfileMenu
+            visible={isProfileMenuVisible}
+            displayName={displayName}
+            email={user.email}
+            onClose={() => setIsProfileMenuVisible(false)}
+            onSignOut={() => {
+              setIsProfileMenuVisible(false);
+              void onSignOut();
+            }}
+          />
+
+          <FacilitySwitchModal
+            visible={isFacilityModalVisible}
+            facilities={user.associatedFacilities}
+            selectedFacilityId={user.selectedFacility?.id ?? null}
+            onClose={() => setIsFacilityModalVisible(false)}
+            onConfirm={onSelectFacility}
+          />
+
+          {user.selectedFacility?.id && selectedSummaryMetric ? (
+            <SummaryDetailModal
+              visible={isSummaryModalVisible}
+              title={selectedSummaryTitle || "Summary"}
+              metric={selectedSummaryMetric}
+              token={user.token}
+              facilityId={user.selectedFacility.id}
+              onClose={() => {
+                setIsSummaryModalVisible(false);
+                setSelectedSummaryMetric(null);
+                setSelectedSummaryTitle("");
+              }}
+              onSelectItem={(selection) => {
+                setIsSummaryModalVisible(false);
+                setSelectedSummaryMetric(null);
+                setSelectedSummaryTitle("");
+
+                if (selection.kind === "task") {
+                  openTaskDetails(selection.id);
+                  return;
+                }
+
+                if (selection.kind === "patient") {
+                  openPatientDetails(selection.id);
+                  return;
+                }
+
+                openVisitDetails(selection.id);
+              }}
+            />
+          ) : null}
+        </SafeAreaView>
       );
     }
 
@@ -457,100 +548,39 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
     return <InfoPlaceholder title={activePage} />;
   };
 
-  if (activePage === 'Home') {
-    return (
-      <SafeAreaView style={styles.homeScreen} edges={['top', 'left', 'right', 'bottom']}>
-        <HomeDashboard
-          brandTitle={activeFacilityName}
-          brandSubtitle="Click Health Pro"
-          displayName={displayName || user.userName || 'Clinician'}
-          quickActions={quickActions}
-          summaryItems={summaryItems}
-          modules={homeCards}
-          onMenuPress={() => setIsMenuVisible(true)}
-          onFacilityPress={() => setIsFacilityModalVisible(true)}
-          onProfilePress={() => setIsProfileMenuVisible(true)}
-          onSummaryItemPress={handleSummaryItemPress}
-          onHomePress={() => navigateRootPage('Home')}
-        />
-
-        <SideMenu
-          visible={isMenuVisible}
-          items={menuItems}
-          activeItemKey={activePage}
-          onSelectItem={handleSelectMenuItem}
-          onClose={() => setIsMenuVisible(false)}
-        />
-
-        <ProfileMenu
-          visible={isProfileMenuVisible}
-          displayName={displayName}
-          email={user.email}
-          onClose={() => setIsProfileMenuVisible(false)}
-          onSignOut={() => {
-            setIsProfileMenuVisible(false);
-            void onSignOut();
-          }}
-        />
-
-        <FacilitySwitchModal
-          visible={isFacilityModalVisible}
-          facilities={user.associatedFacilities}
-          selectedFacilityId={user.selectedFacility?.id ?? null}
-          onClose={() => setIsFacilityModalVisible(false)}
-          onConfirm={onSelectFacility}
-        />
-
-        {user.selectedFacility?.id && selectedSummaryMetric ? (
-          <SummaryDetailModal
-            visible={isSummaryModalVisible}
-            title={selectedSummaryTitle || 'Summary'}
-            metric={selectedSummaryMetric}
-            token={user.token}
-            facilityId={user.selectedFacility.id}
-            onClose={() => {
-              setIsSummaryModalVisible(false);
-              setSelectedSummaryMetric(null);
-              setSelectedSummaryTitle('');
-            }}
-            onSelectItem={(selection) => {
-              setIsSummaryModalVisible(false);
-              setSelectedSummaryMetric(null);
-              setSelectedSummaryTitle('');
-
-              if (selection.kind === 'task') {
-                openTaskDetails(selection.id);
-                return;
-              }
-
-              if (selection.kind === 'patient') {
-                openPatientDetails(selection.id);
-                return;
-              }
-
-              openVisitDetails(selection.id);
-            }}
-          />
-        ) : null}
-      </SafeAreaView>
-    );
-  }
+  
 
   return (
-    <SafeAreaView style={styles.screen} edges={['left', 'right', 'bottom']}>
-      <View style={styles.contentWrap}>
-        <AppBar
-          title="Click Health Pro"
-          logoSource={require('../../assets/chp-logo.png')}
-          facilityName={activeFacilityName}
-          userLabel={displayName || user.userName || 'U'}
-          onMenuPress={() => setIsMenuVisible(true)}
-          onFacilityPress={() => setIsFacilityModalVisible(true)}
-          onProfilePress={() => setIsProfileMenuVisible(true)}
-        />
-        <Divider style={styles.topDivider} />
+    <SafeAreaView style={isFullScreenFlow ? styles.homeScreen : styles.screen} edges={['left', 'right', 'bottom']}>
+      <View style={[styles.contentWrap, isFullScreenFlow ? styles.contentWrapFullScreen : null]}>
+        {!isFullScreenFlow ? (
+          <View style={styles.headerRow}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Open menu" onPress={() => setIsMenuVisible(true)} style={styles.headerAction}>
+              <IconButton icon="menu" size={18} iconColor={themeColors.textSecondary} style={styles.headerActionIcon} />
+            </Pressable>
 
-        <View style={styles.fixedHeaderWrap}>
+            <View style={styles.brandTextWrap}>
+              <Text numberOfLines={1} style={styles.brandTitle}>
+                {activeFacilityName}
+              </Text>
+              <Text numberOfLines={1} style={styles.brandSubtitle}>
+                {'Click Health Pro'}
+              </Text>
+            </View>
+
+            <View style={styles.headerActions}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Switch facility" onPress={() => setIsFacilityModalVisible(true)} style={styles.facilityAction}>
+                <IconButton icon="swap-horizontal" size={16} iconColor={themeColors.secondary} style={styles.headerActionIcon} />
+              </Pressable>
+
+              <Pressable accessibilityRole="button" accessibilityLabel="Open profile" onPress={() => setIsProfileMenuVisible(true)}>
+                <Avatar.Text size={36} label={user.userName.trim().charAt(0).toUpperCase() || 'U'} labelStyle={styles.avatarLabel} style={styles.avatar} />
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
+
+        {/* <View style={styles.fixedHeaderWrap}>
           <View style={styles.breadcrumbWrap}>
             <IconButton
               icon="arrow-left"
@@ -562,12 +592,38 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
             />
             <Text numberOfLines={1} style={styles.breadcrumbCurrent}>{breadcrumbText}</Text>
           </View>
-        </View>
+        </View> */}
 
-        <View style={[styles.contentScroll, { paddingBottom: insets.bottom + 16 }]}>
+        <View style={[styles.contentScroll, !isFullScreenFlow ? { paddingBottom: insets.bottom } : null]}>
           {renderPageContent()}
         </View>
+        {!isFullScreenFlow ? (
+          <View style={styles.bottomNav}>
+            {[
+              { key: 'Home', label: 'Home', active: true },
+              { key: 'Search', label: 'Search', active: false },
+              { key: 'Alerts', label: 'Alerts', active: false },
+              { key: 'Profile', label: 'Profile', active: false },
+            ].map((item) => (
+              <Pressable
+                key={item.key}
+                style={styles.bottomNavItemWrap}
+                onPress={item.key === 'Home' ? () => navigateRootPage('Home') : undefined}
+                disabled={item.key !== 'Home'}
+              >
+                <IconButton
+                  icon={item.key === 'Home' ? 'home-outline' : item.key === 'Search' ? 'magnify' : item.key === 'Alerts' ? 'bell-outline' : 'account-outline'}
+                  size={16}
+                  iconColor={item.active ? themeColors.primary : themeColors.textSecondary}
+                  style={styles.bottomNavIcon}
+                />
+                <Text style={item.active ? styles.bottomNavLabelActive : styles.bottomNavLabel}>{item.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
       </View>
+      
 
       <SideMenu
         visible={isMenuVisible}
@@ -608,10 +664,28 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: themeColors.surface,
   },
+  headerAction: {
+    width: 30,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  facilityAction: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+    backgroundColor: themeColors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: themeColors.border,
+  },
   contentWrap: {
     flex: 1,
-    paddingHorizontal: 12,
     paddingBottom: 4,
+  },
+  contentWrapFullScreen: {
+    paddingBottom: 0,
   },
   topDivider: {
     backgroundColor: themeColors.border,
@@ -621,6 +695,48 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 8,
     gap: 6,
+  },
+  headerActionIcon: {
+    margin: 0,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    paddingTop: 12,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  brandTextWrap: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: 8,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  brandTitle: {
+    color: themeColors.textPrimary,
+    fontSize: 14,
+    fontWeight: '800',
+    lineHeight: 18,
+    textAlign: 'center',
+  },
+  brandSubtitle: {
+    color: themeColors.textSecondary,
+    fontSize: 11,
+    fontWeight: '600',
+    lineHeight: 14,
+    textAlign: 'center',
+  },
+  avatar: {
+    backgroundColor: themeColors.primary,
+  },
+  avatarLabel: {
+    color: themeColors.textOnBrand,
+    fontSize: 14,
+    fontWeight: '800',
   },
   breadcrumbWrap: {
     flexDirection: 'row',
@@ -657,6 +773,34 @@ const styles = StyleSheet.create({
   },
   summaryCardContent: {
     gap: 8,
+  },
+  bottomNav: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-around',
+    paddingTop: 10,
+    paddingBottom: 6,
+    borderTopWidth: 1,
+    borderTopColor: '#E8E1D8',
+    backgroundColor: themeColors.surface,
+  },
+  bottomNavItemWrap: {
+    alignItems: 'center',
+    gap: 1,
+    minWidth: 56,
+  },
+  bottomNavIcon: {
+    margin: 0,
+  },
+  bottomNavLabel: {
+    color: themeColors.textSecondary,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  bottomNavLabelActive: {
+    color: themeColors.primary,
+    fontSize: 11,
+    fontWeight: '800',
   },
   summaryTopRow: {
     flexDirection: 'row',
