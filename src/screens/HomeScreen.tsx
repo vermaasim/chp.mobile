@@ -19,6 +19,7 @@ import { VisitDetailsPanel } from '../components/VisitDetailsPanel';
 import { VisitsPanel } from '../components/VisitsPanel';
 import { HomeDashboard, type HomeDashboardModule, type HomeDashboardQuickAction, type HomeDashboardSummaryItem } from '../components/home/HomeDashboard';
 import { SummaryDetailModal } from '../components/home/SummaryDetailModal';
+import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { themeColors } from '../theme/colors';
 import type { AuthSession } from '../types/auth';
 
@@ -139,6 +140,7 @@ function getAllowedPrescriptionTypes(user: AuthSession) {
 export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProps) {
   const displayName = buildDisplayName(user);
   const insets = useSafeAreaInsets();
+  const layout = useResponsiveLayout();
   const [pageStack, setPageStack] = useState<PageKey[]>(['Home']);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [selectedVisitId, setSelectedVisitId] = useState<string | null>(null);
@@ -554,7 +556,7 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
     <SafeAreaView style={isFullScreenFlow ? styles.homeScreen : styles.screen} edges={['left', 'right', 'bottom']}>
       <View style={[styles.contentWrap, isFullScreenFlow ? styles.contentWrapFullScreen : null]}>
         {!isFullScreenFlow ? (
-          <View style={styles.headerRow}>
+          <View style={[styles.headerRow, { paddingHorizontal: layout.horizontalPadding, paddingTop: layout.isTablet ? 16 : 12 }]}>
             <Pressable accessibilityRole="button" accessibilityLabel="Open menu" onPress={() => setIsMenuVisible(true)} style={styles.headerAction}>
               <IconButton icon="menu" size={18} iconColor={themeColors.textSecondary} style={styles.headerActionIcon} />
             </Pressable>
@@ -598,7 +600,7 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
           {renderPageContent()}
         </View>
         {!isFullScreenFlow ? (
-          <View style={styles.bottomNav}>
+          <View style={[styles.bottomNav, { paddingHorizontal: layout.horizontalPadding }]}>
             {[
               { key: 'Home', label: 'Home', active: true },
               { key: 'Search', label: 'Search', active: false },
@@ -701,8 +703,6 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     flexDirection: 'row',
-    paddingTop: 12,
-    paddingHorizontal: 8,
     alignItems: 'center',
     justifyContent: 'space-between',
   },

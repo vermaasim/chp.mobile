@@ -5,6 +5,7 @@ import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar, IconButton } from 'react-native-paper';
 import { createPatient } from '../api/patients';
+import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { themeColors } from '../theme/colors';
 import { formatDateInput } from '../utils/dateRangeFilter';
 import type { PatientCreatePayload } from '../types/patients';
@@ -164,6 +165,7 @@ export function NewPatientPanel({
   onSaved,
 }: NewPatientPanelProps) {
   const insets = useSafeAreaInsets();
+  const layout = useResponsiveLayout();
   const [form, setForm] = useState<PatientFormState>(INITIAL_FORM);
   const [currentStep, setCurrentStep] = useState<PatientStepKey>('basic-details');
   const [patientCreatedSuccessfully, setPatientCreatedSuccessfully] = useState(false);
@@ -603,8 +605,8 @@ export function NewPatientPanel({
   };
 
   const renderSuccessScreen = () => (
-    <View style={styles.successScreen}>
-      <View style={styles.successCard}>
+    <View style={[styles.successScreen, { paddingHorizontal: layout.horizontalPadding }]}>
+      <View style={[styles.successCard, layout.formMaxWidth ? { maxWidth: layout.formMaxWidth } : null]}>
         <View style={styles.successIconWrap}>
           <Feather name="check-circle" size={34} color={themeColors.primary} />
         </View>
@@ -641,29 +643,31 @@ export function NewPatientPanel({
 
   return (
     <View style={styles.screen}>
-      <View style={[styles.headerShell, { paddingTop: Math.max(6, insets.top + 4) }]}>
-        <View style={styles.topBarRow}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Open menu" onPress={onMenuPress} style={styles.topIconButton}>
-            <IconButton icon="menu" size={18} iconColor={themeColors.textPrimary} style={styles.topIconButtonInner} />
-          </Pressable>
-          <View style={styles.brandWrap}>
-            <Text numberOfLines={1} style={styles.facilityName}>{facilityName}</Text>
-            <Text style={styles.brandSubtitle}>Click Health Pro</Text>
+      <View style={[styles.headerShell, { paddingTop: Math.max(6, insets.top + 4), paddingHorizontal: layout.horizontalPadding }]}>
+        <View style={[styles.headerInner, layout.formMaxWidth ? { maxWidth: layout.formMaxWidth } : null]}>
+          <View style={styles.topBarRow}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Open menu" onPress={onMenuPress} style={styles.topIconButton}>
+              <IconButton icon="menu" size={18} iconColor={themeColors.textPrimary} style={styles.topIconButtonInner} />
+            </Pressable>
+            <View style={styles.brandWrap}>
+              <Text numberOfLines={1} style={styles.facilityName}>{facilityName}</Text>
+              <Text style={styles.brandSubtitle}>Click Health Pro</Text>
+            </View>
+            <Pressable accessibilityRole="button" accessibilityLabel="Open profile" onPress={onProfilePress}>
+              <Avatar.Text size={36} label={toInitials(displayName)} style={styles.profileAvatar} labelStyle={styles.profileAvatarLabel} />
+            </Pressable>
           </View>
-          <Pressable accessibilityRole="button" accessibilityLabel="Open profile" onPress={onProfilePress}>
-            <Avatar.Text size={36} label={toInitials(displayName)} style={styles.profileAvatar} labelStyle={styles.profileAvatarLabel} />
-          </Pressable>
-        </View>
 
-        <View style={styles.titleBlock}>
-          <Text style={styles.title}>New patient</Text>
-          <Text style={styles.stepTitle}>{`Step ${currentStepIndex + 1} of 4 · ${STEP_CONFIG[currentStepIndex].title}`}</Text>
-        </View>
+          <View style={styles.titleBlock}>
+            <Text style={styles.title}>New patient</Text>
+            <Text style={styles.stepTitle}>{`Step ${currentStepIndex + 1} of 4 · ${STEP_CONFIG[currentStepIndex].title}`}</Text>
+          </View>
 
-        <View style={styles.progressRow}>
-          {STEP_CONFIG.map((step, index) => (
-            <View key={step.key} style={[styles.progressSegment, index <= currentStepIndex ? styles.progressSegmentActive : null]} />
-          ))}
+          <View style={styles.progressRow}>
+            {STEP_CONFIG.map((step, index) => (
+              <View key={step.key} style={[styles.progressSegment, index <= currentStepIndex ? styles.progressSegmentActive : null]} />
+            ))}
+          </View>
         </View>
       </View>
 
@@ -671,28 +675,32 @@ export function NewPatientPanel({
         renderSuccessScreen()
       ) : (
         <>
-          <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingBottom: Math.max(120, insets.bottom + 96) }]}>
+          <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingHorizontal: layout.horizontalPadding, paddingBottom: Math.max(layout.footerReserve, insets.bottom + 96) }]}>
+            <View style={[styles.formContainer, layout.formMaxWidth ? { maxWidth: layout.formMaxWidth } : null]}>
             {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
             {renderStepContent()}
+            </View>
           </ScrollView>
 
-          <View style={[styles.footer, { paddingBottom: Math.max(16, insets.bottom + 12) }]}>
-            <Pressable
-              accessibilityRole="button"
-              style={[styles.footerButton, styles.footerButtonSecondary, isFirstStep ? styles.footerButtonDisabled : null]}
-              onPress={goToPreviousStep}
-              disabled={isFirstStep}
-            >
-              <Text style={[styles.footerButtonTextSecondary, isFirstStep ? styles.footerButtonTextDisabled : null]}>Back</Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              style={[styles.footerButton, styles.footerButtonPrimary, saving ? styles.footerButtonDisabled : null]}
-              onPress={goToNextStep}
-              disabled={saving}
-            >
-              <Text style={styles.footerButtonTextPrimary}>{saving ? 'Saving patient...' : isLastStep ? 'Save patient' : `Next: ${STEP_CONFIG[currentStepIndex + 1].title}`}</Text>
-            </Pressable>
+          <View style={[styles.footer, { paddingBottom: Math.max(16, insets.bottom + 12), paddingHorizontal: layout.horizontalPadding }]}>
+            <View style={[styles.footerInner, layout.formMaxWidth ? { maxWidth: layout.formMaxWidth } : null]}>
+              <Pressable
+                accessibilityRole="button"
+                style={[styles.footerButton, styles.footerButtonSecondary, isFirstStep ? styles.footerButtonDisabled : null]}
+                onPress={goToPreviousStep}
+                disabled={isFirstStep}
+              >
+                <Text style={[styles.footerButtonTextSecondary, isFirstStep ? styles.footerButtonTextDisabled : null]}>Back</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                style={[styles.footerButton, styles.footerButtonPrimary, saving ? styles.footerButtonDisabled : null]}
+                onPress={goToNextStep}
+                disabled={saving}
+              >
+                <Text style={styles.footerButtonTextPrimary}>{saving ? 'Saving patient...' : isLastStep ? 'Save patient' : `Next: ${STEP_CONFIG[currentStepIndex + 1].title}`}</Text>
+              </Pressable>
+            </View>
           </View>
 
           {datePickerVisible ? (
@@ -728,9 +736,12 @@ const styles = StyleSheet.create({
     backgroundColor: themeColors.surface,
   },
   headerShell: {
-    paddingHorizontal: 16,
     paddingBottom: 8,
     backgroundColor: themeColors.surface,
+  },
+  headerInner: {
+    width: '100%',
+    alignSelf: 'center',
   },
   topBarRow: {
     flexDirection: 'row',
@@ -805,8 +816,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    paddingHorizontal: 16,
     paddingTop: 8,
+    gap: 14,
+  },
+  formContainer: {
+    width: '100%',
+    alignSelf: 'center',
     gap: 14,
   },
   errorText: {
@@ -938,8 +953,11 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#ECE7DF',
     backgroundColor: '#FBFAF8',
-    paddingHorizontal: 16,
     paddingTop: 12,
+  },
+  footerInner: {
+    width: '100%',
+    alignSelf: 'center',
     flexDirection: 'row',
     gap: 12,
   },
@@ -983,6 +1001,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   successCard: {
+    width: '100%',
+    alignSelf: 'center',
     borderRadius: 20,
     borderWidth: 1,
     borderColor: themeColors.successBorder,

@@ -3,6 +3,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Card, List, Text } from 'react-native-paper';
 import type { Facility } from '../types/auth';
 import { themeColors } from '../theme/colors';
+import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 
 interface FacilitySwitchModalProps {
   visible: boolean;
@@ -23,6 +24,8 @@ export function FacilitySwitchModal({
   onClose,
   onConfirm,
 }: FacilitySwitchModalProps) {
+  const layout = useResponsiveLayout();
+
   const handleConfirm = async (facilityId: string) => {
     await onConfirm(facilityId);
     onClose();
@@ -33,8 +36,8 @@ export function FacilitySwitchModal({
       <SafeAreaView style={styles.overlay} edges={['top', 'bottom', 'left', 'right']}>
         <Pressable style={styles.backdrop} onPress={onClose} />
 
-        <View style={styles.cardWrap}>
-          <Card style={styles.card} mode="outlined">
+        <View style={[styles.cardWrap, { paddingHorizontal: layout.horizontalPadding }]}>
+          <Card style={[styles.card, { maxWidth: layout.modalMaxWidth }]} mode="outlined">
             <Card.Content>
               <Text style={styles.title}>Switch Facility</Text>
               <Text style={styles.subtitle}>

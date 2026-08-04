@@ -1,5 +1,6 @@
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { Avatar, Card, IconButton, Text } from 'react-native-paper';
+import { Card, IconButton, Text } from 'react-native-paper';
+import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
 import { themeColors } from '../../theme/colors';
 
 export interface HomeDashboardQuickAction {
@@ -52,13 +53,19 @@ export function HomeDashboard({
   onSummaryItemPress,
   onHomePress,
 }: HomeDashboardProps) {
+  const layout = useResponsiveLayout();
   const heroName = displayName.startsWith('Dr.') ? displayName : `Dr. ${displayName}`;
-  const avatarLabel = displayName.trim().charAt(0).toUpperCase() || 'U';
   const visibleModules = modules.slice(0, 3);
+  const quickActionBasis = layout.isLandscape ? '24%' : '31.5%';
 
   return (
     <View style={styles.wrapper}>
-      <ScrollView style={styles.scrollArea} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scrollArea}
+        contentContainerStyle={[styles.content, { paddingHorizontal: layout.horizontalPadding }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[styles.contentInner, layout.contentMaxWidth ? { maxWidth: layout.contentMaxWidth } : null]}>
         {/* <View style={styles.headerRow}>
           <Pressable accessibilityRole="button" accessibilityLabel="Open menu" onPress={onMenuPress} style={styles.headerAction}>
             <IconButton icon="menu" size={18} iconColor={themeColors.textSecondary} style={styles.headerActionIcon} />
@@ -95,9 +102,17 @@ export function HomeDashboard({
 
         <View style={styles.sectionBlock}>
           <Text style={styles.sectionTitle}>Quick actions</Text>
-          <View style={styles.quickActionsRow}>
+          <View style={[styles.quickActionsRow, layout.isTablet ? styles.quickActionsRowTablet : null]}>
             {quickActions.map((action) => (
-              <Pressable key={action.key} style={[styles.quickActionCard, action.key === 'add-action' ? styles.quickActionCardMuted : null]} onPress={action.onPress}>
+              <Pressable
+                key={action.key}
+                style={[
+                  styles.quickActionCard,
+                  action.key === 'add-action' ? styles.quickActionCardMuted : null,
+                  layout.isTablet ? { flexBasis: quickActionBasis, flexGrow: 0 } : null,
+                ]}
+                onPress={action.onPress}
+              >
                 <View style={styles.quickActionIconWrap}>
                   <IconButton
                     icon={action.icon}
@@ -122,14 +137,25 @@ export function HomeDashboard({
 
         <View style={styles.sectionBlock}>
           <Text style={styles.sectionTitle}>Today's summary</Text>
-          <ScrollView horizontal style={styles.summaryRow} showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
-            {summaryItems.map((item) => (
-              <Pressable key={item.key} style={styles.summaryCard} onPress={() => onSummaryItemPress?.(item)}>
-                <Text style={styles.summaryValue}>{item.value}</Text>
-                <Text style={styles.summaryLabel}>{item.label}</Text>
-              </Pressable>
-            ))}
-          </ScrollView>
+          {layout.isTablet ? (
+            <View style={styles.summaryGrid}>
+              {summaryItems.map((item) => (
+                <Pressable key={item.key} style={[styles.summaryCard, styles.summaryCardTablet]} onPress={() => onSummaryItemPress?.(item)}>
+                  <Text style={styles.summaryValue}>{item.value}</Text>
+                  <Text style={styles.summaryLabel}>{item.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : (
+            <ScrollView horizontal style={styles.summaryRow} showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+              {summaryItems.map((item) => (
+                <Pressable key={item.key} style={styles.summaryCard} onPress={() => onSummaryItemPress?.(item)}>
+                  <Text style={styles.summaryValue}>{item.value}</Text>
+                  <Text style={styles.summaryLabel}>{item.label}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          )}
         </View>
 
         <View style={styles.sectionBlock}>
@@ -164,6 +190,7 @@ export function HomeDashboard({
             </View>
           </View>
         </View>
+      </View>
       </ScrollView>
 
       
@@ -180,9 +207,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    paddingHorizontal: 14,
     paddingTop: 12,
     paddingBottom: 12,
+    gap: 12,
+  },
+  contentInner: {
+    width: '100%',
+    alignSelf: 'center',
     gap: 12,
   },
   headerRow: {
@@ -275,6 +306,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 6,
   },
+  quickActionsRowTablet: {
+    flexWrap: 'wrap',
+  },
   quickActionCard: {
     flex: 1,
     height: 68,
@@ -310,6 +344,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 6,
   },
+  summaryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
   summaryCard: {
     flex: 1,
     height: 60,
@@ -319,6 +358,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 2,
+  },
+  summaryCardTablet: {
+    minWidth: 130,
+    flexGrow: 1,
   },
   summaryValue: {
     color: themeColors.textPrimary,

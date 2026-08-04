@@ -1,6 +1,7 @@
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { Button, Surface, Text } from 'react-native-paper';
 import { themeColors } from '../theme/colors';
+import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 
 export interface SideMenuItem {
   key: string;
@@ -25,6 +26,7 @@ export function SideMenu({
   onSelectItem,
   onClose,
 }: SideMenuProps) {
+  const layout = useResponsiveLayout();
   const groupedItems = items.reduce<Record<string, SideMenuItem[]>>((acc, item) => {
     const groupKey = item.group ?? 'Main';
     if (!acc[groupKey]) {
@@ -40,7 +42,7 @@ export function SideMenu({
   return (
     <Modal animationType="fade" transparent visible={visible} onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <Surface style={styles.drawer} elevation={2}>
+        <Surface style={[styles.drawer, { width: layout.drawerWidth }]} elevation={2}>
           <Text style={styles.menuTitle}>Menu</Text>
 
           {groupEntries.map(([groupName, groupItems]) => (
@@ -91,7 +93,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   drawer: {
-    width: 250,
     height: '100%',
     backgroundColor: themeColors.surface,
     borderRightWidth: 1,
