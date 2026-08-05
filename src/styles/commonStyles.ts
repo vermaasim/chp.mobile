@@ -997,6 +997,9 @@ export const taskDetailsPanelStyles = StyleSheet.create({
     fontWeight: '700',
   },
   fabButton: {
+    position: 'absolute',
+    right: 16,
+    bottom: 20,
     width: 56,
     height: 56,
     borderRadius: 999,

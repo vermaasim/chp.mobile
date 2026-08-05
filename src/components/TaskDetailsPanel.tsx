@@ -43,6 +43,7 @@ import {
   AddPhysiotherapyRxModal,
   AddPhysiotherapyTxNotesModal,
 } from './record-modals';
+import { RecordTypeChooserSheet } from './record-flow/RecordTypeChooserSheet';
 
 interface TaskDetailsPanelProps {
   token: string;
@@ -1170,39 +1171,21 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
         }}
       />
 
+      <RecordTypeChooserSheet
+        visible={canOpenCreateChooser && fabOptionsVisible}
+        options={createOptions}
+        onClose={() => setFabOptionsVisible(false)}
+        onSelect={handleCreateSelection}
+      />
+
       {canOpenCreateChooser ? (
-        <View pointerEvents="box-none" style={taskDetailsPanelStyles.fabOverlay}>
-          {fabOptionsVisible ? (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => setFabOptionsVisible(false)}
-              style={taskDetailsPanelStyles.fabBackdrop}
-            />
-          ) : null}
-
-          {fabOptionsVisible ? (
-            <View style={taskDetailsPanelStyles.fabOptionsWrap}>
-              {createOptions.map((option) => (
-                <Pressable
-                  key={option.key}
-                  accessibilityRole="button"
-                  onPress={() => handleCreateSelection(option.key)}
-                  style={taskDetailsPanelStyles.fabOptionButton}
-                >
-                  <Text style={taskDetailsPanelStyles.fabOptionText}>{option.label}</Text>
-                </Pressable>
-              ))}
-            </View>
-          ) : null}
-
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => setFabOptionsVisible((visible) => !visible)}
-            style={taskDetailsPanelStyles.fabButton}
-          >
-            <Text style={taskDetailsPanelStyles.fabButtonText}>{fabOptionsVisible ? '×' : '+'}</Text>
-          </Pressable>
-        </View>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setFabOptionsVisible((visible) => !visible)}
+          style={taskDetailsPanelStyles.fabButton}
+        >
+          <Text style={taskDetailsPanelStyles.fabButtonText}>{fabOptionsVisible ? '×' : '+'}</Text>
+        </Pressable>
       ) : null}
     </View>
   );
