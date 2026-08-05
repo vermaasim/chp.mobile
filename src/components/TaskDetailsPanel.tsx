@@ -17,7 +17,7 @@ import {
   loadServiceLinkedRecords,
 } from '../api/records';
 import { mapEditingRecordToTemplate, type EditableRecordState } from './AddRecordModal';
-import { canStartService, loadServiceDetails, updateServiceStatus } from '../api/worklist';
+import { loadServiceDetails, updateServiceStatus } from '../api/worklist';
 import { taskDetailsPanelStyles } from '../styles/commonStyles';
 import { themeColors } from '../theme/colors';
 import type { AssignedService, TaskDetailRecord, TaskDetailRecordType } from '../types/worklist';
@@ -50,11 +50,6 @@ interface TaskDetailsPanelProps {
   facilityId: string;
   refreshSeed?: number;
   allowedPrescriptionTypes?: string[];
-}
-
-interface DetailRow {
-  key: string;
-  value: string;
 }
 
 interface RecordGroup {
@@ -204,24 +199,36 @@ function getRecordStatusIcon(status?: string) {
   };
 }
 
-function buildPatientInfo(task: AssignedService): DetailRow[] {
-  return [
-    { key: 'MRN', value: task.patientMRN || '-' },
-    { key: 'Age', value: task.patientAgeInYears ? `${task.patientAgeInYears} years` : '-' },
-    { key: 'Gender', value: task.patientGender || '-' },
-    { key: 'Mobile', value: task.patientMobileNo || '-' },
-    { key: 'Email', value: task.patientEmailId || '-' },
-  ];
+function toInitials(value: string) {
+  const parts = value.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) {
+    return 'NA';
+  }
+
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+
+  return `${parts[0][0] ?? ''}${parts[1][0] ?? ''}`.toUpperCase();
 }
 
-function buildVisitInfo(task: AssignedService): DetailRow[] {
-  return [
-    { key: 'Visit ID', value: task.visitDisplayId || '-' },
-    { key: 'Service', value: task.serviceName || '-' },
-    { key: 'Scheduled', value: formatReadableDateTime(task.scheduledStartDateTime) },
-    { key: 'Assigned To', value: task.assignedToUserName || '-' },
-    { key: 'Referred By', value: task.referredBy || '-' },
-  ];
+function formatAgeGender(task: AssignedService) {
+  const age = task.patientAgeInYears ? `${task.patientAgeInYears} yrs` : '';
+  const gender = task.patientGender?.trim() || '';
+
+  if (age && gender) {
+    return `${age} · ${gender}`;
+  }
+
+  if (age) {
+    return age;
+  }
+
+  if (gender) {
+    return gender;
+  }
+
+  return '-';
 }
 
 function isFinalizedStatus(status?: string) {
@@ -671,11 +678,29 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
   }
 
   const patientName = formatPatientName(task) || 'Unnamed Patient';
+  const patientInitials = toInitials(patientName);
+  const patientInfoRows = [
+    { key: 'MRN', value: task.patientMRN || '-' },
+    { key: 'Age / gender', value: formatAgeGender(task) },
+    { key: 'Mobile', value: task.patientMobileNo || '-' },
+    { key: 'Email', value: task.patientEmailId || '-' },
+  ];
+  const visitPrimaryRows = [
+    { key: 'Visit ID', value: task.visitDisplayId || '-' },
+    { key: 'Service', value: task.serviceName || '-' },
+  ];
+  const visitSecondaryRows = [
+    { key: 'Scheduled', value: formatReadableDateTime(task.scheduledStartDateTime) },
+    { key: 'Referred by', value: task.referredBy || '-' },
+  ];
   const statusTone = getStatusTone(task.status);
-  const canOpenCreateChooser = task.status === 'InProgress';
-  const canStartTask = canStartService(task.status);
-  const canCompleteTask = task.status === 'InProgress';
-  const canUndoTask = task.status === 'InProgress' || task.status === 'Completed';
+  const isInProgress = task.status === 'InProgress';
+  const isCompleted = task.status === 'Completed';
+  const isNotStarted = !isInProgress && !isCompleted;
+  const canOpenCreateChooser = isInProgress;
+  const canStartTask = isNotStarted;
+  const canCompleteTask = isInProgress;
+  const canUndoTask = isInProgress || isCompleted;
 
   return (
     <View style={taskDetailsPanelStyles.panelRoot}>
@@ -695,16 +720,20 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
 
           <View style={taskDetailsPanelStyles.metaGrid}>
             <View style={taskDetailsPanelStyles.metaRowCard}>
-              <Text style={taskDetailsPanelStyles.metaKey}>Task ID</Text>
-              <Text style={taskDetailsPanelStyles.metaValue}>{task.displayId || task.id || '-'}</Text>
-            </View>
-            <View style={taskDetailsPanelStyles.metaRowCard}>
-              <Text style={taskDetailsPanelStyles.metaKey}>Date</Text>
-              <Text style={taskDetailsPanelStyles.metaValue}>{formatReadableDateTime(task.scheduledStartDateTime)}</Text>
-            </View>
-            <View style={taskDetailsPanelStyles.metaRowCard}>
-              <Text style={taskDetailsPanelStyles.metaKey}>Assigned To</Text>
-              <Text style={taskDetailsPanelStyles.metaValue}>{task.assignedToUserName || '-'}</Text>
+              <View style={taskDetailsPanelStyles.metaTwoColRow}>
+                <View style={taskDetailsPanelStyles.metaFieldBlock}>
+                  <Text style={taskDetailsPanelStyles.metaLabel}>Task ID</Text>
+                  <Text style={taskDetailsPanelStyles.metaText}>{task.displayId || task.id || '-'}</Text>
+                </View>
+                <View style={taskDetailsPanelStyles.metaFieldBlock}>
+                  <Text style={taskDetailsPanelStyles.metaLabel}>Assigned to</Text>
+                  <Text style={taskDetailsPanelStyles.metaText}>{task.assignedToUserName || '-'}</Text>
+                </View>
+              </View>
+              <View style={taskDetailsPanelStyles.metaFieldBlock}>
+                <Text style={taskDetailsPanelStyles.metaLabel}>Date</Text>
+                <Text style={taskDetailsPanelStyles.metaText}>{formatReadableDateTime(task.scheduledStartDateTime)}</Text>
+              </View>
             </View>
           </View>
 
@@ -716,10 +745,13 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
                   accessibilityLabel="Start task"
                   disabled={taskActionLoading}
                   onPress={() => void handleTaskStatusChange('InProgress')}
-                  style={[taskDetailsPanelStyles.taskStatusActionButton, taskActionLoading ? taskDetailsPanelStyles.taskStatusActionButtonDisabled : null]}
+                  style={[
+                    taskDetailsPanelStyles.taskStatusActionButton,
+                    taskDetailsPanelStyles.taskStatusActionButtonFull,
+                    taskActionLoading ? taskDetailsPanelStyles.taskStatusActionButtonDisabled : null,
+                  ]}
                 >
-                  <Feather name="play" size={14} color={themeColors.textOnBrand} />
-                  <Text style={taskDetailsPanelStyles.taskStatusActionText}>Start</Text>
+                  <Text style={taskDetailsPanelStyles.taskStatusActionText}>Start task</Text>
                 </Pressable>
               ) : null}
 
@@ -729,9 +761,12 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
                   accessibilityLabel="Complete task"
                   disabled={taskActionLoading}
                   onPress={() => void handleTaskStatusChange('Completed')}
-                  style={[taskDetailsPanelStyles.taskStatusActionButton, taskActionLoading ? taskDetailsPanelStyles.taskStatusActionButtonDisabled : null]}
+                  style={[
+                    taskDetailsPanelStyles.taskStatusActionButton,
+                    taskDetailsPanelStyles.taskStatusActionButtonHalf,
+                    taskActionLoading ? taskDetailsPanelStyles.taskStatusActionButtonDisabled : null,
+                  ]}
                 >
-                  <Feather name="check-circle" size={14} color={themeColors.textOnBrand} />
                   <Text style={taskDetailsPanelStyles.taskStatusActionText}>Complete</Text>
                 </Pressable>
               ) : null}
@@ -742,9 +777,15 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
                   accessibilityLabel="Undo task status"
                   disabled={taskActionLoading}
                   onPress={() => void handleUndoTaskStatus()}
-                  style={[taskDetailsPanelStyles.taskStatusActionButtonSecondary, taskActionLoading ? taskDetailsPanelStyles.taskStatusActionButtonDisabled : null]}
+                  style={[
+                    taskDetailsPanelStyles.taskStatusActionButtonSecondary,
+                    canCompleteTask
+                      ? taskDetailsPanelStyles.taskStatusActionButtonHalf
+                      : taskDetailsPanelStyles.taskStatusActionButtonFull,
+                    taskActionLoading ? taskDetailsPanelStyles.taskStatusActionButtonDisabled : null,
+                  ]}
                 >
-                  <Feather name="corner-up-left" size={14} color={themeColors.secondary} />
+                  <Feather name="square" size={14} color={themeColors.secondary} />
                   <Text style={taskDetailsPanelStyles.taskStatusActionTextSecondary}>Undo</Text>
                 </Pressable>
               ) : null}
@@ -763,13 +804,20 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
           </View>
 
           <View style={taskDetailsPanelStyles.infoCard}>
-            <Text style={taskDetailsPanelStyles.infoName}>{patientName}</Text>
-            {buildPatientInfo(task).map((row) => (
-              <View key={row.key} style={taskDetailsPanelStyles.infoKeyValueRow}>
-                <Text style={taskDetailsPanelStyles.infoKey}>{row.key}</Text>
-                <Text style={taskDetailsPanelStyles.infoVal}>{row.value}</Text>
+            <View style={taskDetailsPanelStyles.infoIdentityRow}>
+              <View style={taskDetailsPanelStyles.infoAvatarCircle}>
+                <Text style={taskDetailsPanelStyles.infoAvatarText}>{patientInitials}</Text>
               </View>
-            ))}
+              <Text style={taskDetailsPanelStyles.infoName}>{patientName}</Text>
+            </View>
+            <View style={taskDetailsPanelStyles.infoTwoColGrid}>
+              {patientInfoRows.map((row) => (
+                <View key={row.key} style={taskDetailsPanelStyles.infoTwoColCell}>
+                  <Text style={taskDetailsPanelStyles.infoBlockLabel}>{row.key}</Text>
+                  <Text style={taskDetailsPanelStyles.infoBlockValue}>{row.value}</Text>
+                </View>
+              ))}
+            </View>
           </View>
         </Card.Content>
       </Card>
@@ -778,37 +826,47 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
         <Card.Content>
           <View style={taskDetailsPanelStyles.sectionHeader}>
             <View>
-              <Text style={taskDetailsPanelStyles.sectionHeading}>Visit Information</Text>
+              <Text style={taskDetailsPanelStyles.sectionHeading}>Visit information</Text>
               <Text style={taskDetailsPanelStyles.sectionHint}>Service and visit context</Text>
             </View>
           </View>
 
           <View style={taskDetailsPanelStyles.infoCard}>
-            {buildVisitInfo(task).map((row) => (
-              <View key={row.key} style={taskDetailsPanelStyles.infoKeyValueRow}>
-                <Text style={taskDetailsPanelStyles.infoKey}>{row.key}</Text>
-                <Text style={taskDetailsPanelStyles.infoVal}>{row.value}</Text>
-              </View>
-            ))}
+            <View style={taskDetailsPanelStyles.infoTwoColGrid}>
+              {visitPrimaryRows.map((row) => (
+                <View key={row.key} style={taskDetailsPanelStyles.infoTwoColCell}>
+                  <Text style={taskDetailsPanelStyles.infoBlockLabel}>{row.key}</Text>
+                  <Text style={taskDetailsPanelStyles.infoBlockValue}>{row.value}</Text>
+                </View>
+              ))}
+              {!isNotStarted
+                ? visitSecondaryRows.map((row) => (
+                    <View key={row.key} style={taskDetailsPanelStyles.infoTwoColCell}>
+                      <Text style={taskDetailsPanelStyles.infoBlockLabel}>{row.key}</Text>
+                      <Text style={taskDetailsPanelStyles.infoBlockValue}>{row.value}</Text>
+                    </View>
+                  ))
+                : null}
+            </View>
           </View>
         </Card.Content>
       </Card>
 
-      <Card mode="outlined" style={taskDetailsPanelStyles.sectionCard}>
-        <Card.Content>
-          <View style={taskDetailsPanelStyles.sectionHeader}>
-            <View>
-              <Text style={taskDetailsPanelStyles.sectionHeading}>Records</Text>
-              <Text style={taskDetailsPanelStyles.sectionHint}>Prescriptions, notes, drawings, and medical records</Text>
+      {!isNotStarted ? (
+        <Card mode="outlined" style={taskDetailsPanelStyles.sectionCard}>
+          <Card.Content>
+            <View style={taskDetailsPanelStyles.sectionHeader}>
+              <View>
+                <Text style={taskDetailsPanelStyles.sectionHeading}>Records</Text>
+                <Text style={taskDetailsPanelStyles.sectionHint}>Prescriptions, notes & files</Text>
+              </View>
+              <View style={taskDetailsPanelStyles.sectionCountBadgeCompact}>
+                <Text style={taskDetailsPanelStyles.sectionCountTextCompact}>{displayRecords.length}</Text>
+              </View>
             </View>
-            <View style={taskDetailsPanelStyles.sectionCountBadge}>
-              <Text style={taskDetailsPanelStyles.sectionCountText}>{displayRecords.length} records</Text>
-            </View>
-          </View>
-
-          <View style={taskDetailsPanelStyles.recordsList}>
-            {displayRecords.length > 0 ? (
-              displayRecords.map((record) => {
+            <View style={taskDetailsPanelStyles.recordsList}>
+              {displayRecords.length > 0 ? (
+                displayRecords.map((record) => {
                   const addedOn = formatReadableDateTime(
                     record.createdOn || record.lastModifiedOn || record.dateOfUpload || record.recordDateTime,
                   );
@@ -985,14 +1043,15 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
                     </View>
                   );
                 })
-            ) : (
-              <View style={taskDetailsPanelStyles.emptyState}>
-                <Text style={taskDetailsPanelStyles.emptyText}>No records found for this service.</Text>
-              </View>
-            )}
-          </View>
-        </Card.Content>
-      </Card>
+              ) : (
+                <View style={taskDetailsPanelStyles.emptyState}>
+                  <Text style={taskDetailsPanelStyles.emptyText}>No records found for this service.</Text>
+                </View>
+              )}
+            </View>
+          </Card.Content>
+        </Card>
+      ) : null}
 
       </ScrollView>
 

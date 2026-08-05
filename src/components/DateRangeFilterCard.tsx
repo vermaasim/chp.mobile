@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { Modal, Platform, Pressable, Text, View } from 'react-native';
+import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { allStyles } from '../styles/commonStyles';
 import { themeColors } from '../theme/colors';
 import {
   DATE_FILTER_OPTIONS,
@@ -54,19 +53,17 @@ export function DateRangeFilterCard({
 
   const isCustomRangeValid = isValidDateRange(draftCustomFromDate, draftCustomToDate);
 
-  const toggleFilterAccordion = () => {
-    setIsOpen((previousValue) => {
-      const nextValue = !previousValue;
+  const openFilterModal = () => {
+    setFilterErrorMessage(null);
+    setDraftFilterOption(selectedOption);
+    setDraftCustomFromDate(fromDate);
+    setDraftCustomToDate(toDate);
+    setIsOpen(true);
+  };
 
-      if (nextValue) {
-        setFilterErrorMessage(null);
-        setDraftFilterOption(selectedOption);
-        setDraftCustomFromDate(fromDate);
-        setDraftCustomToDate(toDate);
-      }
-
-      return nextValue;
-    });
+  const closeFilterModal = () => {
+    setIsOpen(false);
+    setDatePickerTarget(null);
   };
 
   const applyPickedDate = (target: 'dialogFrom' | 'dialogTo', selectedDate: Date) => {
@@ -74,10 +71,12 @@ export function DateRangeFilterCard({
 
     if (target === 'dialogFrom') {
       setDraftCustomFromDate(nextValue);
+      setDraftFilterOption('custom');
       return;
     }
 
     setDraftCustomToDate(nextValue);
+    setDraftFilterOption('custom');
   };
 
   const openDatePicker = (target: 'dialogFrom' | 'dialogTo') => {
@@ -140,7 +139,7 @@ export function DateRangeFilterCard({
     }
 
     setFilterErrorMessage(null);
-    setIsOpen(false);
+    closeFilterModal();
 
     await onApply({
       option: nextOption,
@@ -149,26 +148,46 @@ export function DateRangeFilterCard({
     });
   };
 
-  return (
-    <View style={allStyles.filterCard}>
-      <View style={allStyles.selectedFilterSummary}>
-        <Pressable accessibilityRole="button" onPress={toggleFilterAccordion} style={allStyles.accordionHeader}>
-          <View style={allStyles.accordionHeaderTextWrap}>
-            <View style={allStyles.filterSummaryRow}>
-              <Feather name="calendar" size={13} color={themeColors.textSecondary} />
-              <Text style={allStyles.selectedFilterLabel}>{summaryLabel}</Text>
-            </View>
-            <View style={allStyles.filterSummaryValueRow}>
-              <Text style={allStyles.selectedFilterValue}>{getFilterLabel(selectedOption)}</Text>
-              <Text style={allStyles.selectedFilterDates}>{fromDate} to {toDate}</Text>
-            </View>
-          </View>
-          <Feather name={isOpen ? 'chevron-up' : 'chevron-down'} size={18} color={themeColors.textSecondary} />
-        </Pressable>
+  const formatReadableDate = (value: string) => {
+    const parsed = parseDateInput(value);
+    return parsed.toLocaleDateString(undefined, {
+      day: 'numeric',
+      month: 'short',
+    });
+  };
 
-        {isOpen ? (
-          <View style={allStyles.accordionContent}>
-            <View style={allStyles.filterChipGroup}>
+  const formatReadableDateWithYear = (value: string) => {
+    const parsed = parseDateInput(value);
+    return parsed.toLocaleDateString(undefined, {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+  };
+
+  return (
+    <>
+      <View style={styles.filterCard}>
+        <Pressable accessibilityRole="button" onPress={openFilterModal} style={styles.summaryButton}>
+          <View style={styles.summaryLeftIconWrap}>
+            <Feather name="calendar" size={14} color={themeColors.primary} />
+          </View>
+          <View style={styles.summaryTextWrap}>
+            <Text style={styles.summaryTitle}>{getFilterLabel(selectedOption)}</Text>
+            <Text style={styles.summaryDates}>{`${formatReadableDate(fromDate)} - ${formatReadableDateWithYear(toDate)}`}</Text>
+          </View>
+          <Feather name="chevron-down" size={18} color={themeColors.textSecondary} />
+        </Pressable>
+      </View>
+
+      <Modal animationType="fade" transparent visible={isOpen} onRequestClose={closeFilterModal}>
+        <View style={styles.sheetOverlay}>
+          <Pressable style={styles.sheetBackdrop} onPress={closeFilterModal} />
+          <View style={styles.sheetCard}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>Select date range</Text>
+
+            <View style={styles.optionGrid}>
               {DATE_FILTER_OPTIONS.map((option) => {
                 const isSelected = draftFilterOption === option.key;
 
@@ -176,10 +195,17 @@ export function DateRangeFilterCard({
                   <Pressable
                     key={option.key}
                     accessibilityRole="button"
-                    onPress={() => setDraftFilterOption(option.key)}
-                    style={[allStyles.filterChip, isSelected ? allStyles.filterChipSelected : null]}
+                    onPress={() => {
+                      setDraftFilterOption(option.key);
+                      if (option.key !== 'custom') {
+                        const nextRange = getRangeForOption(option.key);
+                        setDraftCustomFromDate(nextRange.fromDate);
+                        setDraftCustomToDate(nextRange.toDate);
+                      }
+                    }}
+                    style={[styles.optionChip, isSelected ? styles.optionChipActive : null]}
                   >
-                    <Text style={[allStyles.filterChipText, isSelected ? allStyles.filterChipTextSelected : null]}>
+                    <Text style={[styles.optionChipText, isSelected ? styles.optionChipTextActive : null]}>
                       {option.label}
                     </Text>
                   </Pressable>
@@ -187,38 +213,38 @@ export function DateRangeFilterCard({
               })}
             </View>
 
-            {draftFilterOption === 'custom' ? (
-              <View style={allStyles.customRangeWrap}>
-                <View style={allStyles.customRangeRow}>
-                  <View style={allStyles.customRangeField}>
-                    <Text style={allStyles.label}>From</Text>
-                    <Pressable style={allStyles.datePickerButton} onPress={() => openDatePicker('dialogFrom')}>
-                      <Text style={allStyles.datePickerText}>{draftCustomFromDate}</Text>
-                      <Feather name="calendar" size={14} color={themeColors.primary} />
-                    </Pressable>
-                  </View>
+            <View style={styles.rangePreviewWrap}>
+              <Text style={styles.rangePreviewText}>{`${formatReadableDateWithYear(draftCustomFromDate)} - ${formatReadableDateWithYear(draftCustomToDate)}`}</Text>
+            </View>
 
-                  <View style={allStyles.customRangeField}>
-                    <Text style={allStyles.label}>To</Text>
-                    <Pressable style={allStyles.datePickerButton} onPress={() => openDatePicker('dialogTo')}>
-                      <Text style={allStyles.datePickerText}>{draftCustomToDate}</Text>
-                      <Feather name="calendar" size={14} color={themeColors.primary} />
-                    </Pressable>
-                  </View>
+            <View style={styles.datePickersRow}>
+              <Pressable style={styles.datePickerButton} onPress={() => openDatePicker('dialogFrom')}>
+                <View>
+                  <Text style={styles.datePickerDay}>{parseDateInput(draftCustomFromDate).getDate()}</Text>
+                  <Text style={styles.datePickerMonth}>{parseDateInput(draftCustomFromDate).toLocaleDateString(undefined, { month: 'short' })}</Text>
                 </View>
+                <Feather name="calendar" size={14} color={themeColors.primary} />
+              </Pressable>
 
-                {filterErrorMessage ? <Text style={allStyles.filterErrorText}>{filterErrorMessage}</Text> : null}
-              </View>
-            ) : null}
+              <Pressable style={styles.datePickerButton} onPress={() => openDatePicker('dialogTo')}>
+                <View>
+                  <Text style={styles.datePickerDay}>{parseDateInput(draftCustomToDate).getDate()}</Text>
+                  <Text style={styles.datePickerMonth}>{parseDateInput(draftCustomToDate).toLocaleDateString(undefined, { month: 'short' })}</Text>
+                </View>
+                <Feather name="calendar" size={14} color={themeColors.primary} />
+              </Pressable>
+            </View>
 
-            <View style={allStyles.dialogActions}>
+            {filterErrorMessage ? <Text style={styles.filterErrorText}>{filterErrorMessage}</Text> : null}
+
+            <View style={styles.sheetActions}>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Cancel date filter changes"
-                onPress={toggleFilterAccordion}
-                style={allStyles.dialogCancelButton}
+                onPress={closeFilterModal}
+                style={styles.cancelButton}
               >
-                <Text style={allStyles.dialogCancelText}>Cancel</Text>
+                <Text style={styles.cancelButtonText}>Cancel</Text>
               </Pressable>
 
               <Pressable
@@ -227,16 +253,16 @@ export function DateRangeFilterCard({
                 onPress={() => void applyDateFilter()}
                 disabled={draftFilterOption === 'custom' && !isCustomRangeValid}
                 style={[
-                  allStyles.dialogApplyButton,
-                  draftFilterOption === 'custom' && !isCustomRangeValid ? allStyles.dialogApplyButtonDisabled : null,
+                  styles.applyButton,
+                  draftFilterOption === 'custom' && !isCustomRangeValid ? styles.applyButtonDisabled : null,
                 ]}
               >
-                <Text style={allStyles.dialogApplyText}>Apply</Text>
+                <Text style={styles.applyButtonText}>Apply</Text>
               </Pressable>
             </View>
           </View>
-        ) : null}
-      </View>
+        </View>
+      </Modal>
 
       {showAndroidDatePicker ? (
         <DateTimePicker value={pickerValue} mode="date" display="default" onChange={onDatePickerChange} />
@@ -244,23 +270,244 @@ export function DateRangeFilterCard({
 
       {Platform.OS === 'ios' && iosPickerVisible && datePickerTarget ? (
         <Modal animationType="fade" transparent visible onRequestClose={closeIosPicker}>
-          <View style={allStyles.pickerModalOverlay}>
-            <Pressable style={allStyles.pickerModalBackdrop} onPress={closeIosPicker} />
-            <View style={allStyles.pickerModalCard}>
-              <Text style={allStyles.pickerModalTitle}>Select Date</Text>
+          <View style={styles.pickerModalOverlay}>
+            <Pressable style={styles.pickerModalBackdrop} onPress={closeIosPicker} />
+            <View style={styles.pickerModalCard}>
+              <Text style={styles.pickerModalTitle}>Select Date</Text>
               <DateTimePicker value={iosPickerDate} mode="date" display="spinner" onChange={onDatePickerChange} />
-              <View style={allStyles.pickerModalActions}>
-                <Pressable style={allStyles.dialogCancelButton} onPress={closeIosPicker}>
-                  <Text style={allStyles.dialogCancelText}>Cancel</Text>
+              <View style={styles.pickerModalActions}>
+                <Pressable style={styles.cancelButton} onPress={closeIosPicker}>
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
                 </Pressable>
-                <Pressable style={allStyles.dialogApplyButton} onPress={confirmIosPicker}>
-                  <Text style={allStyles.dialogApplyText}>Done</Text>
+                <Pressable style={styles.applyButton} onPress={confirmIosPicker}>
+                  <Text style={styles.applyButtonText}>Done</Text>
                 </Pressable>
               </View>
             </View>
           </View>
         </Modal>
       ) : null}
-    </View>
+    </>
   );
 }
+
+const styles = StyleSheet.create({
+  filterCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: themeColors.border,
+    backgroundColor: themeColors.surface,
+    overflow: 'hidden',
+  },
+  summaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#F2F6F6',
+  },
+  summaryLeftIconWrap: {
+    width: 22,
+    height: 22,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: '#BFE7E7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EAF8F8',
+  },
+  summaryTextWrap: {
+    flex: 1,
+  },
+  summaryTitle: {
+    color: themeColors.textPrimary,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  summaryDates: {
+    color: themeColors.textSecondary,
+    fontSize: 12,
+    marginTop: 1,
+  },
+  sheetOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.28)',
+  },
+  sheetBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  sheetCard: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    backgroundColor: themeColors.surface,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 20,
+    gap: 12,
+  },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 42,
+    height: 4,
+    borderRadius: 999,
+    backgroundColor: '#D2D0CC',
+  },
+  sheetTitle: {
+    color: themeColors.textPrimary,
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  optionGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  optionChip: {
+    width: '31.6%',
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: '#DDD8D0',
+    backgroundColor: themeColors.surface,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  optionChipActive: {
+    backgroundColor: themeColors.primary,
+    borderColor: themeColors.primary,
+  },
+  optionChipText: {
+    color: '#5B5E62',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  optionChipTextActive: {
+    color: themeColors.textOnBrand,
+    fontWeight: '800',
+  },
+  rangePreviewWrap: {
+    borderTopWidth: 1,
+    borderTopColor: '#ECE7DF',
+    paddingTop: 12,
+  },
+  rangePreviewText: {
+    color: '#7B7771',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  datePickersRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  datePickerButton: {
+    flex: 1,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: '#DDD8D0',
+    backgroundColor: themeColors.surface,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  datePickerDay: {
+    color: themeColors.textPrimary,
+    fontSize: 26,
+    fontWeight: '700',
+    lineHeight: 28,
+  },
+  datePickerMonth: {
+    color: themeColors.textPrimary,
+    fontSize: 14,
+    fontWeight: '600',
+    lineHeight: 16,
+    textTransform: 'capitalize',
+  },
+  sheetActions: {
+    marginTop: 4,
+    flexDirection: 'row',
+    gap: 10,
+  },
+  cancelButton: {
+    flex: 1,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#DDD8D0',
+    backgroundColor: themeColors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 52,
+  },
+  cancelButtonText: {
+    color: '#5B5E62',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  applyButton: {
+    flex: 1,
+    borderRadius: 14,
+    backgroundColor: themeColors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 52,
+  },
+  applyButtonDisabled: {
+    opacity: 0.5,
+  },
+  applyButtonText: {
+    color: themeColors.textOnBrand,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  filterErrorText: {
+    color: themeColors.warningText,
+    backgroundColor: themeColors.warningSurface,
+    borderWidth: 1,
+    borderColor: themeColors.warningBorder,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  pickerModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+  },
+  pickerModalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  pickerModalCard: {
+    borderRadius: 14,
+    backgroundColor: themeColors.surface,
+    borderWidth: 1,
+    borderColor: themeColors.border,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 10,
+  },
+  pickerModalTitle: {
+    color: themeColors.textPrimary,
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  pickerModalActions: {
+    marginTop: 4,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
+});

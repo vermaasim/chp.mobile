@@ -657,9 +657,8 @@ export const taskDetailsPanelStyles = StyleSheet.create({
   statusRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-
-    marginBottom: 10,
+    alignItems: 'flex-start',
+    marginBottom: 12,
   },
   statusChip: {
     alignSelf: 'flex-start',
@@ -693,6 +692,8 @@ export const taskDetailsPanelStyles = StyleSheet.create({
   },
   titleBlock: {
     gap: 2,
+    flex: 1,
+    paddingRight: 8,
   },
   headerEyebrow: {
     color: themeColors.textSecondary,
@@ -709,19 +710,39 @@ export const taskDetailsPanelStyles = StyleSheet.create({
   subTitle: {
     color: themeColors.textSecondary,
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   metaGrid: {
     gap: 8,
   },
   metaRowCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
+    gap: 10,
     borderRadius: 10,
-    backgroundColor: themeColors.surfaceMuted,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    backgroundColor: '#F7F8F8',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  metaTwoColRow: {
+    flexDirection: 'row',
+    gap: 14,
+  },
+  metaFieldBlock: {
+    flex: 1,
+    gap: 2,
+  },
+  metaLabel: {
+    color: themeColors.textSecondary,
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  metaText: {
+    color: themeColors.textPrimary,
+    fontSize: 12,
+    fontWeight: '800',
+    lineHeight: 18,
+  },
+  metaRowCardHalf: {
+    flex: 1,
   },
   metaRow: {
     flexDirection: 'row',
@@ -742,29 +763,36 @@ export const taskDetailsPanelStyles = StyleSheet.create({
     textAlign: 'right',
   },
   taskStatusActions: {
-    marginTop: 12,
+    marginTop: 14,
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
+    gap: 10,
   },
   taskStatusActionButton: {
     borderRadius: 10,
-    backgroundColor: themeColors.secondary,
+    backgroundColor: themeColors.primary,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    height: 44,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
+  },
+  taskStatusActionButtonFull: {
+    width: '100%',
+  },
+  taskStatusActionButtonHalf: {
+    flex: 1,
   },
   taskStatusActionButtonSecondary: {
     borderRadius: 10,
-    backgroundColor: themeColors.warningSurface,
+    backgroundColor: themeColors.surface,
     borderWidth: 1,
-    borderColor: themeColors.secondary,
+    borderColor: '#DDD9D1',
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    height: 44,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
   },
   taskStatusActionButtonDisabled: {
@@ -772,12 +800,12 @@ export const taskDetailsPanelStyles = StyleSheet.create({
   },
   taskStatusActionText: {
     color: themeColors.textOnBrand,
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '700',
   },
   taskStatusActionTextSecondary: {
-    color: themeColors.secondary,
-    fontSize: 12,
+    color: '#55585C',
+    fontSize: 14,
     fontWeight: '700',
   },
   sectionCard: {
@@ -791,7 +819,7 @@ export const taskDetailsPanelStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 10,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   sectionHeading: {
     color: themeColors.textPrimary,
@@ -801,6 +829,7 @@ export const taskDetailsPanelStyles = StyleSheet.create({
   sectionHint: {
     color: themeColors.textSecondary,
     fontSize: 12,
+    lineHeight: 17,
   },
   sectionCountBadge: {
     borderRadius: 999,
@@ -817,16 +846,70 @@ export const taskDetailsPanelStyles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
+  sectionCountBadgeCompact: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: themeColors.successSurface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sectionCountTextCompact: {
+    color: themeColors.primary,
+    fontSize: 12,
+    fontWeight: '700',
+  },
   infoCard: {
     borderRadius: 10,
-    backgroundColor: themeColors.surfaceMuted,
-    padding: 10,
-    gap: 8,
+    backgroundColor: '#F7F8F8',
+    padding: 12,
+    gap: 10,
+  },
+  infoIdentityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 2,
+  },
+  infoAvatarCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#EFF2F1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  infoAvatarText: {
+    color: '#5F6466',
+    fontSize: 13,
+    fontWeight: '700',
   },
   infoName: {
     color: themeColors.textPrimary,
     fontSize: 15,
+    lineHeight: 20,
     fontWeight: '800',
+  },
+  infoTwoColGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    columnGap: 14,
+    rowGap: 8,
+  },
+  infoTwoColCell: {
+    width: '48%',
+    gap: 2,
+  },
+  infoBlockLabel: {
+    color: themeColors.textSecondary,
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  infoBlockValue: {
+    color: themeColors.textPrimary,
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 17,
   },
   infoValue: {
     color: themeColors.textPrimary,

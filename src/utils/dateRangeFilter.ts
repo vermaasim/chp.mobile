@@ -1,9 +1,10 @@
-export type DateFilterOption = 'today' | 'yesterday' | 'lastWeek' | 'nextWeek' | 'custom';
+export type DateFilterOption = 'today' | 'yesterday' | 'lastWeek' | 'thisWeek' | 'nextWeek' | 'custom';
 
 export const DATE_FILTER_OPTIONS: Array<{ key: DateFilterOption; label: string }> = [
   { key: 'today', label: 'Today' },
   { key: 'yesterday', label: 'Yesterday' },
   { key: 'lastWeek', label: 'Last Week' },
+  { key: 'thisWeek', label: 'This Week' },
   { key: 'nextWeek', label: 'Next Week' },
   { key: 'custom', label: 'Custom' },
 ];
@@ -31,6 +32,14 @@ function addDays(baseDate: Date, days: number) {
   return copy;
 }
 
+function startOfWeek(baseDate: Date) {
+  const copy = new Date(baseDate);
+  const day = copy.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  copy.setDate(copy.getDate() + diff);
+  return copy;
+}
+
 export function getRangeForOption(option: DateFilterOption) {
   const today = new Date();
 
@@ -41,9 +50,18 @@ export function getRangeForOption(option: DateFilterOption) {
   }
 
   if (option === 'lastWeek') {
+    const weekStart = startOfWeek(today);
     return {
-      fromDate: formatDateInput(addDays(today, -7)),
-      toDate: formatDateInput(addDays(today, -1)),
+      fromDate: formatDateInput(addDays(weekStart, -7)),
+      toDate: formatDateInput(addDays(weekStart, -1)),
+    };
+  }
+
+  if (option === 'thisWeek') {
+    const weekStart = startOfWeek(today);
+    return {
+      fromDate: formatDateInput(weekStart),
+      toDate: formatDateInput(addDays(weekStart, 6)),
     };
   }
 

@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Pressable,
   ScrollView,
+  StyleSheet,
   Text,
   View,
 } from 'react-native';
@@ -25,11 +26,32 @@ interface MyTasksPanelProps {
   onOpenTaskDetails: (taskId: string) => void;
 }
 
+type TaskStatusFilterKey = 'NotStarted' | 'InProgress' | 'Completed';
+
+const TASK_STATUS_FILTERS: Array<{ key: TaskStatusFilterKey; label: string }> = [
+  { key: 'NotStarted', label: 'Not Started' },
+  { key: 'InProgress', label: 'In Progress' },
+  { key: 'Completed', label: 'Completed' },
+];
+
 function formatPatientName(service: AssignedService) {
   return [service.patientPrefix, service.patientFirstName, service.patientLastName]
     .filter(Boolean)
     .join(' ')
     .trim();
+}
+
+function toInitials(value: string) {
+  const parts = value.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) {
+    return 'NA';
+  }
+
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+
+  return `${parts[0][0] ?? ''}${parts[1][0] ?? ''}`.toUpperCase();
 }
 
 function getStatusLabel(status: string) {
@@ -57,6 +79,20 @@ function getTaskStatusTone(status: string) {
   };
 }
 
+function normalizeTaskStatus(status?: string): TaskStatusFilterKey {
+  const normalized = (status ?? '').replace(/\s+/g, '').toLowerCase();
+
+  if (normalized === 'completed') {
+    return 'Completed';
+  }
+
+  if (normalized === 'inprogress') {
+    return 'InProgress';
+  }
+
+  return 'NotStarted';
+}
+
 function formatTaskSchedule(value?: string | null) {
   if (!value) {
     return '-';
@@ -81,9 +117,37 @@ export function MyTasksPanel({ token, facilityId, onOpenTaskDetails }: MyTasksPa
   const [fromDate, setFromDate] = useState(initialRange.fromDate);
   const [toDate, setToDate] = useState(initialRange.toDate);
   const [selectedFilterOption, setSelectedFilterOption] = useState<WorklistDateFilterOption>('today');
-  const [tasks, setTasks] = useState<AssignedService[]>([]);
+  const [allTasks, setAllTasks] = useState<AssignedService[]>([]);
+  const [selectedStatuses, setSelectedStatuses] = useState<TaskStatusFilterKey[]>(TASK_STATUS_FILTERS.map((item) => item.key));
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const visibleTasks = useMemo(() => {
+    return allTasks.filter((task) => selectedStatuses.includes(normalizeTaskStatus(task.status)));
+  }, [allTasks, selectedStatuses]);
+
+  const metrics = useMemo(() => {
+    return visibleTasks.reduce(
+      (accumulator, task) => {
+        const status = normalizeTaskStatus(task.status);
+        accumulator.total += 1;
+
+        if (status === 'Completed') {
+          accumulator.done += 1;
+          return accumulator;
+        }
+
+        if (status === 'InProgress') {
+          accumulator.inProgress += 1;
+          return accumulator;
+        }
+
+        accumulator.notStarted += 1;
+        return accumulator;
+      },
+      { total: 0, notStarted: 0, inProgress: 0, done: 0 },
+    );
+  }, [visibleTasks]);
 
   const refreshTasks = async (nextFromDate = fromDate, nextToDate = toDate) => {
     setLoading(true);
@@ -92,13 +156,24 @@ export function MyTasksPanel({ token, facilityId, onOpenTaskDetails }: MyTasksPa
     try {
       const range = toUtcIsoRange(nextFromDate, nextToDate);
       const items = await loadMyAssignedServices(token, facilityId, range.from, range.to);
-      setTasks(items ?? []);
+      setAllTasks(items ?? []);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to load tasks.');
-      setTasks([]);
+      setAllTasks([]);
     } finally {
       setLoading(false);
     }
+  };
+
+  const toggleStatus = (status: TaskStatusFilterKey) => {
+    const exists = selectedStatuses.includes(status);
+    const next = exists ? selectedStatuses.filter((item) => item !== status) : [...selectedStatuses, status];
+
+    if (next.length === 0) {
+      return;
+    }
+
+    setSelectedStatuses(next);
   };
 
   const handleTaskPress = (task: AssignedService) => {
@@ -159,12 +234,49 @@ export function MyTasksPanel({ token, facilityId, onOpenTaskDetails }: MyTasksPa
   return (
     <View style={styles.container}>
       <DateRangeFilterCard
-        summaryLabel="Tasks for"
+        summaryLabel="Tasks"
         selectedOption={selectedFilterOption}
         fromDate={fromDate}
         toDate={toDate}
         onApply={applyDateFilter}
       />
+
+      <View style={styles.metricsRow}>
+        <View style={styles.metricCard}>
+          <Text style={styles.metricValue}>{metrics.total}</Text>
+          <Text style={styles.metricLabel}>Total</Text>
+        </View>
+        <View style={styles.metricCard}>
+          <Text style={styles.metricValueMuted}>{metrics.notStarted}</Text>
+          <Text style={styles.metricLabel}>Not started</Text>
+        </View>
+        <View style={[styles.metricCard, styles.metricCardInProgress]}>
+          <Text style={styles.metricValueInProgress}>{metrics.inProgress}</Text>
+          <Text style={styles.metricLabel}>In progress</Text>
+        </View>
+        <View style={[styles.metricCard, styles.metricCardDone]}>
+          <Text style={styles.metricValueDone}>{metrics.done}</Text>
+          <Text style={styles.metricLabel}>Done</Text>
+        </View>
+      </View>
+
+      <View style={styles.topActionRow}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statusChipRow}>
+          {TASK_STATUS_FILTERS.map((status) => {
+            const selected = selectedStatuses.includes(status.key);
+            return (
+              <Pressable
+                key={status.key}
+                accessibilityRole="button"
+                style={[allStyles.typeChip, selected ? allStyles.typeChipActive : null]}
+                onPress={() => toggleStatus(status.key)}
+              >
+                <Text style={[allStyles.typeChipText, selected ? allStyles.typeChipTextActive : null]}>{status.label}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
 
       {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
 
@@ -178,8 +290,10 @@ export function MyTasksPanel({ token, facilityId, onOpenTaskDetails }: MyTasksPa
       ) : null}
 
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
-        {tasks.map((task) => {
-          const statusTone = getTaskStatusTone(task.status);
+        {visibleTasks.map((task) => {
+          const normalizedStatus = normalizeTaskStatus(task.status);
+          const statusTone = getTaskStatusTone(normalizedStatus);
+          const patientName = formatPatientName(task) || 'Unnamed Patient';
 
           return (
             <Pressable
@@ -189,69 +303,234 @@ export function MyTasksPanel({ token, facilityId, onOpenTaskDetails }: MyTasksPa
               style={styles.taskCard}
             >
               <View style={styles.taskTopRow}>
-                <View style={styles.taskNameWrap}>
-                  <Text style={styles.taskName}>{formatPatientName(task) || 'Unnamed Patient'}</Text>
-                </View>
-                <View style={styles.statusActionsWrap}>
-                  <View style={[styles.statusBadge, statusTone.badgeStyle]}>
-                    <Text style={[styles.statusBadgeText, statusTone.textStyle]}>{getStatusLabel(task.status)}</Text>
+                <View style={styles.taskIdentityWrap}>
+                  <View style={styles.avatarCircle}>
+                    <Text style={styles.avatarLabel}>{toInitials(patientName)}</Text>
                   </View>
-
-                  {/* {!isSelectionMode && canAdvanceStatus ? (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={advanceStatusLabel}
-                      style={styles.headerIconAction}
-                      onPress={() => {
-                        if (task.status === 'InProgress') {
-                          void handleCompleteTask(task);
-                          return;
-                        }
-
-                        if (canStart) {
-                          void handleStartTask(task);
-                        }
-                      }}
-                    >
-                      <Feather name={advanceIconName} size={14} color={themeColors.textOnBrand} />
-                    </Pressable>
-                  ) : null} */}
-
-                  {/* {!isSelectionMode && canUndo ? (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Undo"
-                      style={styles.headerSecondaryIconAction}
-                      onPress={() => void handleUndoStatus(task)}
-                    >
-                      <Feather name="corner-up-left" size={14} color={themeColors.textPrimary} />
-                    </Pressable>
-                  ) : null} */}
+                  <View style={styles.taskNameWrap}>
+                    <Text style={styles.taskName}>{patientName}</Text>
+                    <Text numberOfLines={1} style={styles.taskServiceText}>{`${task.serviceName || '-'} · ${formatTaskSchedule(task.scheduledStartDateTime)}`}</Text>
+                  </View>
+                </View>
+                <View style={[styles.statusBadge, statusTone.badgeStyle]}>
+                  <Text style={[styles.statusBadgeText, statusTone.textStyle]}>{getStatusLabel(normalizedStatus)}</Text>
                 </View>
               </View>
 
-              <Text numberOfLines={1} style={styles.taskServiceText}>Service: {task.serviceName || '-'}</Text>
-              <View style={styles.taskMetaRow}>
-                <Text numberOfLines={1} style={styles.taskMetaItem}>ID: {task.displayId || task.id}</Text>
-                <Text numberOfLines={1} style={[styles.taskMetaItem, styles.taskMetaItemRight]}>
-                  {formatTaskSchedule(task.scheduledStartDateTime)}
-                </Text>
-              </View>
+              <Text numberOfLines={1} style={styles.taskMetaText}>{`ID: ${task.displayId || task.id}`}</Text>
             </Pressable>
           );
         })}
 
-        {!loading && tasks.length === 0 ? (
+        {!loading && visibleTasks.length === 0 ? (
           <View style={styles.emptyState}>
             <Feather name="inbox" size={18} color={themeColors.textSecondary} />
-            <Text style={styles.emptyText}>No assigned services for this date range</Text>
-            <Text style={styles.emptySubText}>Try switching the date filter to view other tasks.</Text>
+            <Text style={styles.emptyText}>{allTasks.length === 0 ? 'No assigned services for this date range' : 'No tasks match the selected status filters'}</Text>
+            <Text style={styles.emptySubText}>{allTasks.length === 0 ? 'Try switching the date filter to view other tasks.' : 'Try selecting another status to see matching tasks.'}</Text>
           </View>
         ) : null}
       </ScrollView>
-
     </View>
   );
 }
 
-const styles = allStyles;
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: themeColors.border,
+    backgroundColor: themeColors.surface,
+    padding: 10,
+  },
+  metricsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 10,
+    marginTop: 10,
+  },
+  metricCard: {
+    flex: 1,
+    borderRadius: 12,
+    backgroundColor: '#F2F5F5',
+    minHeight: 62,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+  },
+  metricCardInProgress: {
+    backgroundColor: '#FBEFE7',
+  },
+  metricCardDone: {
+    backgroundColor: '#E0F4F1',
+  },
+  metricValue: {
+    color: themeColors.textPrimary,
+    fontSize: 28,
+    lineHeight: 30,
+    fontWeight: '800',
+  },
+  metricValueMuted: {
+    color: '#7C8284',
+    fontSize: 28,
+    lineHeight: 30,
+    fontWeight: '800',
+  },
+  metricValueInProgress: {
+    color: '#F8893D',
+    fontSize: 28,
+    lineHeight: 30,
+    fontWeight: '800',
+  },
+  metricValueDone: {
+    color: themeColors.primary,
+    fontSize: 28,
+    lineHeight: 30,
+    fontWeight: '800',
+  },
+  metricLabel: {
+    color: '#7B7A76',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  topActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  statusChipRow: {
+    gap: 6,
+    paddingRight: 4,
+  },
+  loadingWrap: {
+    paddingVertical: 14,
+  },
+  loadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  loadingText: {
+    color: themeColors.textSecondary,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  errorText: {
+    color: '#B42318',
+    fontSize: 12,
+    marginBottom: 8,
+  },
+  list: {
+    flex: 1,
+  },
+  listContent: {
+    gap: 0,
+    paddingBottom: 24,
+  },
+  taskCard: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#ECE7DF',
+    paddingVertical: 14,
+  },
+  taskTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  taskIdentityWrap: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  avatarCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#EFF2F1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarLabel: {
+    color: '#5F6466',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  taskNameWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  taskName: {
+    color: themeColors.textPrimary,
+    fontSize: 15,
+    lineHeight: 19,
+    fontWeight: '700',
+  },
+  taskServiceText: {
+    color: '#7C8284',
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '500',
+  },
+  taskMetaText: {
+    color: '#9B9A96',
+    fontSize: 12,
+    marginTop: 8,
+    marginLeft: 52,
+  },
+  statusBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  statusBadgeNotStarted: {
+    backgroundColor: themeColors.statusNotStartedSurface,
+  },
+  statusBadgeNotStartedText: {
+    color: themeColors.statusNotStartedText,
+  },
+  statusBadgeInProgress: {
+    backgroundColor: themeColors.statusInProgressSurface,
+  },
+  statusBadgeInProgressText: {
+    color: themeColors.statusInProgressText,
+  },
+  statusBadgeCompleted: {
+    backgroundColor: themeColors.statusCompletedSurface,
+  },
+  statusBadgeCompletedText: {
+    color: themeColors.statusCompletedText,
+  },
+  emptyState: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: themeColors.border,
+    backgroundColor: themeColors.surface,
+    paddingVertical: 22,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 10,
+  },
+  emptyText: {
+    color: themeColors.textPrimary,
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  emptySubText: {
+    color: themeColors.textSecondary,
+    fontSize: 12,
+    textAlign: 'center',
+  },
+});

@@ -58,6 +58,19 @@ function formatPhysicianName(visit: VisitSummary) {
   return name || '-';
 }
 
+function toInitials(value: string) {
+  const parts = value.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) {
+    return 'NA';
+  }
+
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+
+  return `${parts[0][0] ?? ''}${parts[1][0] ?? ''}`.toUpperCase();
+}
+
 function getStatusTone(status: VisitStatus) {
   if (status === 'Completed') {
     return {
@@ -89,6 +102,32 @@ export function VisitsPanel({ token, facilityId, onOpenVisitDetails, onOpenCreat
   const [visits, setVisits] = useState<VisitSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const metrics = useMemo(() => {
+    return visits.reduce(
+      (accumulator, visit) => {
+        const status = getVisitStatus(visit.visitStatus ?? visit.status);
+        accumulator.total += 1;
+
+        if (status === 'Completed') {
+          accumulator.done += 1;
+          return accumulator;
+        }
+
+        if (status === 'InProgress' || status === 'CheckedIn') {
+          accumulator.inProgress += 1;
+          return accumulator;
+        }
+
+        if (status === 'Scheduled') {
+          accumulator.notStarted += 1;
+        }
+
+        return accumulator;
+      },
+      { total: 0, notStarted: 0, inProgress: 0, done: 0 },
+    );
+  }, [visits]);
 
   const refreshVisits = async (nextFromDate = fromDate, nextToDate = toDate, nextStatuses = selectedStatuses) => {
     setLoading(true);
@@ -152,9 +191,9 @@ export function VisitsPanel({ token, facilityId, onOpenVisitDetails, onOpenCreat
   };
 
   return (
-    <View style={[allStyles.container, styles.panelRoot]}>
+    <View style={[styles.container, styles.panelRoot]}>
       <DateRangeFilterCard
-        summaryLabel="Visits for"
+        summaryLabel="Visits"
         selectedOption={selectedFilterOption}
         fromDate={fromDate}
         toDate={toDate}
@@ -172,6 +211,25 @@ export function VisitsPanel({ token, facilityId, onOpenVisitDetails, onOpenCreat
           await refreshVisits(selection.fromDate, selection.toDate);
         }}
       />
+
+      <View style={styles.metricsRow}>
+        <View style={styles.metricCard}>
+          <Text style={styles.metricValue}>{metrics.total}</Text>
+          <Text style={styles.metricLabel}>Total</Text>
+        </View>
+        <View style={styles.metricCard}>
+          <Text style={styles.metricValueMuted}>{metrics.notStarted}</Text>
+          <Text style={styles.metricLabel}>Not started</Text>
+        </View>
+        <View style={[styles.metricCard, styles.metricCardInProgress]}>
+          <Text style={styles.metricValueInProgress}>{metrics.inProgress}</Text>
+          <Text style={styles.metricLabel}>In progress</Text>
+        </View>
+        <View style={[styles.metricCard, styles.metricCardDone]}>
+          <Text style={styles.metricValueDone}>{metrics.done}</Text>
+          <Text style={styles.metricLabel}>Done</Text>
+        </View>
+      </View>
 
       <View style={styles.topActionRow}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statusChipRow}>
@@ -191,58 +249,56 @@ export function VisitsPanel({ token, facilityId, onOpenVisitDetails, onOpenCreat
         </ScrollView>
       </View>
 
-      {errorMessage ? <Text style={allStyles.errorText}>{errorMessage}</Text> : null}
+      {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
 
       {loading ? (
-        <View style={allStyles.loadingWrap}>
-          <View style={allStyles.loadingRow}>
+        <View style={styles.loadingWrap}>
+          <View style={styles.loadingRow}>
             <ActivityIndicator size="small" color={themeColors.primary} />
-            <Text style={allStyles.loadingText}>Loading visits...</Text>
+            <Text style={styles.loadingText}>Loading visits...</Text>
           </View>
         </View>
       ) : null}
 
-      <ScrollView style={allStyles.list} contentContainerStyle={[allStyles.listContent, styles.listContentWithFab]}>
+      <ScrollView style={styles.list} contentContainerStyle={[styles.listContent, styles.listContentWithFab]}>
         {visits.map((visit) => {
           const status = getVisitStatus(visit.visitStatus ?? visit.status);
           const tone = getStatusTone(status);
+          const patientName = formatPatientName(visit);
 
           return (
             <Pressable
               key={visit.id}
               accessibilityRole="button"
               onPress={() => onOpenVisitDetails(visit.id)}
-              style={allStyles.taskCard}
+              style={styles.taskCard}
             >
-              <View style={allStyles.taskTopRow}>
-                <View style={allStyles.taskNameWrap}>
-                  <Text style={allStyles.taskName}>{formatPatientName(visit)}</Text>
-                </View>
-                <View style={allStyles.statusActionsWrap}>
-                  <View style={[allStyles.statusBadge, tone.badgeStyle]}>
-                    <Text style={[allStyles.statusBadgeText, tone.textStyle]}>{status.replace(/([a-z])([A-Z])/g, '$1 $2')}</Text>
+              <View style={styles.taskTopRow}>
+                <View style={styles.taskIdentityWrap}>
+                  <View style={styles.avatarCircle}>
+                    <Text style={styles.avatarLabel}>{toInitials(patientName)}</Text>
+                  </View>
+                  <View style={styles.taskNameWrap}>
+                    <Text style={styles.taskName}>{patientName}</Text>
+                    <Text numberOfLines={1} style={styles.taskServiceText}>{`${visit.primaryServiceName || '-'} · ${formatVisitDate(visit.scheduledStartDateTime)}`}</Text>
+                    <Text numberOfLines={1} style={styles.taskServiceText}>{`Physician: ${formatPhysicianName(visit)}`}</Text>
                   </View>
                 </View>
+                <View style={[styles.statusBadge, tone.badgeStyle]}>
+                  <Text style={[styles.statusBadgeText, tone.textStyle]}>{status.replace(/([a-z])([A-Z])/g, '$1 $2')}</Text>
+                </View>
               </View>
 
-              <Text numberOfLines={1} style={allStyles.taskServiceText}>Service: {visit.primaryServiceName || '-'}</Text>
-              <Text numberOfLines={1} style={allStyles.taskServiceText}>Physician: {formatPhysicianName(visit)}</Text>
-
-              <View style={allStyles.taskMetaRow}>
-                <Text numberOfLines={1} style={allStyles.taskMetaItem}>ID: {visit.displayId || visit.visitDisplayId || visit.id}</Text>
-                <Text numberOfLines={1} style={[allStyles.taskMetaItem, allStyles.taskMetaItemRight]}>
-                  {formatVisitDate(visit.scheduledStartDateTime)}
-                </Text>
-              </View>
+              <Text numberOfLines={1} style={styles.taskMetaText}>{`ID: ${visit.displayId || visit.visitDisplayId || visit.id}`}</Text>
             </Pressable>
           );
         })}
 
         {!loading && visits.length === 0 ? (
-          <View style={allStyles.emptyState}>
+          <View style={styles.emptyState}>
             <Feather name="calendar" size={18} color={themeColors.textSecondary} />
-            <Text style={allStyles.emptyText}>No visits found for this filter</Text>
-            <Text style={allStyles.emptySubText}>Try changing date or status filters.</Text>
+            <Text style={styles.emptyText}>No visits found for this filter</Text>
+            <Text style={styles.emptySubText}>Try changing date or status filters.</Text>
           </View>
         ) : null}
       </ScrollView>
@@ -260,21 +316,191 @@ export function VisitsPanel({ token, facilityId, onOpenVisitDetails, onOpenCreat
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: themeColors.border,
+    backgroundColor: themeColors.surface,
+    padding: 10,
+  },
   panelRoot: {
     position: 'relative',
+  },
+  metricsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 10,
+    marginTop: 10,
+  },
+  metricCard: {
+    flex: 1,
+    borderRadius: 12,
+    backgroundColor: '#F2F5F5',
+    minHeight: 62,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+  },
+  metricCardInProgress: {
+    backgroundColor: '#FBEFE7',
+  },
+  metricCardDone: {
+    backgroundColor: '#E0F4F1',
+  },
+  metricValue: {
+    color: themeColors.textPrimary,
+    fontSize: 28,
+    lineHeight: 30,
+    fontWeight: '800',
+  },
+  metricValueMuted: {
+    color: '#7C8284',
+    fontSize: 28,
+    lineHeight: 30,
+    fontWeight: '800',
+  },
+  metricValueInProgress: {
+    color: '#F8893D',
+    fontSize: 28,
+    lineHeight: 30,
+    fontWeight: '800',
+  },
+  metricValueDone: {
+    color: themeColors.primary,
+    fontSize: 28,
+    lineHeight: 30,
+    fontWeight: '800',
+  },
+  metricLabel: {
+    color: '#7B7A76',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 2,
   },
   topActionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 8,
+    marginBottom: 10,
   },
   statusChipRow: {
     gap: 6,
     paddingRight: 4,
   },
+  loadingWrap: {
+    paddingVertical: 14,
+  },
+  loadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  loadingText: {
+    color: themeColors.textSecondary,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  errorText: {
+    color: '#B42318',
+    fontSize: 12,
+    marginBottom: 8,
+  },
+  list: {
+    flex: 1,
+  },
+  listContent: {
+    gap: 0,
+    paddingBottom: 24,
+  },
   listContentWithFab: {
     paddingBottom: 144,
+  },
+  taskCard: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#ECE7DF',
+    paddingVertical: 14,
+  },
+  taskTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  taskIdentityWrap: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  avatarCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#EFF2F1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarLabel: {
+    color: '#5F6466',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  taskNameWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  taskName: {
+    color: themeColors.textPrimary,
+    fontSize: 15,
+    lineHeight: 19,
+    fontWeight: '700',
+  },
+  taskServiceText: {
+    color: '#7C8284',
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '500',
+  },
+  taskMetaText: {
+    color: '#9B9A96',
+    fontSize: 12,
+    marginTop: 8,
+    marginLeft: 52,
+  },
+  statusBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  emptyState: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: themeColors.border,
+    backgroundColor: themeColors.surface,
+    paddingVertical: 22,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 10,
+  },
+  emptyText: {
+    color: themeColors.textPrimary,
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  emptySubText: {
+    color: themeColors.textSecondary,
+    fontSize: 12,
+    textAlign: 'center',
   },
   createFab: {
     position: 'absolute',
