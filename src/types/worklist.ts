@@ -70,4 +70,6 @@ export interface MedicalRecordUploadRequest {
   fileUri: string;
   fileName: string;
   mimeType: string;
+  /** Real file handle, populated on web only. Native uploads stream from fileUri. */
+  file?: Blob;
 }

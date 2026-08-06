@@ -21,6 +21,7 @@
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
+        "CAMERA",
         "RECORD_AUDIO"
       ],
       "package": "com.digimaveric.clickhealthpro",
@@ -43,6 +44,14 @@
       ],
       "expo-font",
       "@react-native-community/datetimepicker",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos and videos for medical record attachments.",
+          "cameraPermission": "Allow $(PRODUCT_NAME) to use your camera to capture medical record photos and videos.",
+          "microphonePermission": "Allow $(PRODUCT_NAME) to use your microphone while recording medical record videos."
+        }
+      ],
       [
         "expo-speech-recognition",
         {

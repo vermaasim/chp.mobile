@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { Platform } from 'react-native';
 import { API_BASE_URL } from './config';
 import type {
   AssignedService,
@@ -102,16 +103,35 @@ export async function uploadMedicalRecord(token: string, request: MedicalRecordU
       formData.append('Description', request.description.trim());
     }
 
-    formData.append('File', {
-      uri: request.fileUri,
-      name: request.fileName,
-      type: request.mimeType,
-    } as unknown as Blob);
+    const normalizedName = request.fileName?.trim() || `medical-record-${Date.now()}`;
+    const normalizedMimeType = request.mimeType?.trim() || 'application/octet-stream';
+    if (Platform.OS === 'web') {
+      // The DOM FormData stringifies plain objects to "[object Object]", which binds
+      // server-side as a text field and leaves IFormFile null. A real Blob is required.
+      // Prefer the File the picker handed us; fall back to re-reading the blob:/data: URI.
+      const blob = request.file ?? (await (await fetch(request.fileUri)).blob());
+
+      // The third argument sets the part filename, which becomes IFormFile.FileName.
+      // Without it a bare Blob is uploaded as "blob".
+      formData.append('File', blob, normalizedName);
+    } else {
+      // React Native's FormData polyfill streams the file from the URI given this
+      // exact shape. The cast is deliberate: it is not a valid DOM File.
+      formData.append('File', {
+        uri: request.fileUri,
+        name: normalizedName,
+        type: normalizedMimeType,
+      } as unknown as Blob);
+    }
 
     await apiClient.post('/api/medicalrecord/UploadMedicalRecord', formData, {
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: 'application/json, text/plain, */*',
+        // Required: this overrides the instance-level 'application/json' default.
+        // Without it axios's transformRequest would serialise the FormData through
+        // formDataToJSON and send a JSON body. Axios drops this header before the
+        // request goes out so the platform can supply the multipart boundary.
         'Content-Type': 'multipart/form-data',
       },
     });
