@@ -6,6 +6,8 @@ import type {
 
 export type GeneralRxSaveInput = {
   weight: string;
+  height: string;
+  heightUnit: string;
   bloodPressure: string;
   temprature: string;
   bloodSugar: string;
@@ -41,7 +43,12 @@ function normalizeTest(item: GeneralPrescriptionTest) {
 }
 
 export function buildGeneralRxPayload(input: GeneralRxSaveInput) {
-  const selectedComorbidities = input.comorbidities.filter((item) => item.selected).map((item) => item.value);
+  const comorbidities = input.comorbidities.map((item) => ({
+    value: item.value.trim(),
+    selected: item.selected,
+    displayValue: item.displayValue.trim(),
+    ...(item.additionalText !== undefined ? { additionalText: item.additionalText.trim() } : {}),
+  }));
   const medicines = input.medicines
     .map(normalizeMedicine)
     .filter((item) => item.name || item.dosage || item.duration || item.frequency || item.instructions);
@@ -49,11 +56,13 @@ export function buildGeneralRxPayload(input: GeneralRxSaveInput) {
 
   return {
     weight: input.weight.trim(),
+    height: input.height.trim(),
+    heightUnit: input.heightUnit.trim(),
     bloodPressure: input.bloodPressure.trim(),
     temprature: input.temprature.trim(),
     bloodSugar: input.bloodSugar.trim(),
     complaint: input.complaint.trim(),
-    comorbidities: selectedComorbidities,
+    comorbidities,
     comorbiditiesNotes: input.comorbiditiesNotes.trim(),
     medicalAndSurgicalHistory: input.medicalAndSurgicalHistory.trim(),
     diagnosis: input.diagnosis.trim(),
@@ -65,13 +74,16 @@ export function buildGeneralRxPayload(input: GeneralRxSaveInput) {
 }
 
 export function hasGeneralRxContent(payload: ReturnType<typeof buildGeneralRxPayload>) {
+  const hasComorbidityContent = payload.comorbidities.some((item) => item.selected || Boolean(item.additionalText?.trim()));
+
   return Boolean(
     payload.weight ||
+      payload.height ||
       payload.bloodPressure ||
       payload.temprature ||
       payload.bloodSugar ||
     payload.complaint ||
-      payload.comorbidities.length ||
+      hasComorbidityContent ||
       payload.comorbiditiesNotes ||
       payload.medicalAndSurgicalHistory ||
       payload.diagnosis ||

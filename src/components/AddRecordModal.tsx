@@ -96,6 +96,10 @@ export type GeneralRxBindings = {
   setPrescriptionStatus: (status: 'Draft' | 'Final') => void;
   weight: string;
   setWeight: (value: string) => void;
+  height: string;
+  setHeight: (value: string) => void;
+  heightUnit: string;
+  setHeightUnit: (value: string) => void;
   bloodPressure: string;
   setBloodPressure: (value: string) => void;
   temprature: string;
@@ -106,6 +110,7 @@ export type GeneralRxBindings = {
   setGeneralRxComplaint: (value: string) => void;
   comorbidities: SelectableComorbidity[];
   toggleComorbidity: (value: string) => void;
+  updateComorbidityAdditionalText: (value: string, additionalText: string) => void;
   comorbiditiesNotes: string;
   setComorbiditiesNotes: (value: string) => void;
   medicalAndSurgicalHistory: string;
@@ -295,6 +300,8 @@ export function BaseRecordTemplateModal({
 
   const [generalRxComplaint, setGeneralRxComplaint] = useState('');
   const [generalRxWeight, setGeneralRxWeight] = useState(defaultGeneralPrescription.weight);
+  const [generalRxHeight, setGeneralRxHeight] = useState(defaultGeneralPrescription.height);
+  const [generalRxHeightUnit, setGeneralRxHeightUnit] = useState(defaultGeneralPrescription.heightUnit);
   const [generalRxBloodPressure, setGeneralRxBloodPressure] = useState(defaultGeneralPrescription.bloodPressure);
   const [generalRxTemprature, setGeneralRxTemprature] = useState(defaultGeneralPrescription.temprature);
   const [generalRxBloodSugar, setGeneralRxBloodSugar] = useState(defaultGeneralPrescription.bloodSugar);
@@ -407,6 +414,10 @@ export function BaseRecordTemplateModal({
       setPrescriptionStatus,
       weight: generalRxWeight,
       setWeight: setGeneralRxWeight,
+      height: generalRxHeight,
+      setHeight: setGeneralRxHeight,
+      heightUnit: generalRxHeightUnit,
+      setHeightUnit: setGeneralRxHeightUnit,
       bloodPressure: generalRxBloodPressure,
       setBloodPressure: setGeneralRxBloodPressure,
       temprature: generalRxTemprature,
@@ -423,6 +434,18 @@ export function BaseRecordTemplateModal({
               ? {
                   ...item,
                   selected: !item.selected,
+                }
+              : item
+          )
+        );
+      },
+      updateComorbidityAdditionalText: (value: string, additionalText: string) => {
+        setGeneralRxComorbidities((previousValue) =>
+          previousValue.map((item) =>
+            item.value === value
+              ? {
+                  ...item,
+                  additionalText,
                 }
               : item
           )
@@ -802,6 +825,8 @@ export function BaseRecordTemplateModal({
       if (selectedTemplate === 'generalRx') {
         const payload = buildGeneralRxPayload({
           weight: activeGeneralRx.weight,
+          height: activeGeneralRx.height,
+          heightUnit: activeGeneralRx.heightUnit,
           bloodPressure: activeGeneralRx.bloodPressure,
           temprature: activeGeneralRx.temprature,
           bloodSugar: activeGeneralRx.bloodSugar,
@@ -1178,78 +1203,89 @@ export function BaseRecordTemplateModal({
     <Modal animationType="slide" visible={visible} onRequestClose={closeModal}>
       <View style={allStyles.modalScreen}>
         <View style={allStyles.modalHeader}>
-          <Text style={allStyles.modalTitle}>{isEditing ? 'Edit Record' : 'Add Record'}</Text>
+          <Text style={allStyles.modalTitle}>{selectedTemplate === 'generalRx' ? (isEditing ? 'Edit General Prescription' : 'Add General Prescription') : isEditing ? 'Edit Record' : 'Add Record'}</Text>
           <Pressable onPress={closeModal}>
             <Text style={allStyles.closeText}>Close</Text>
           </Pressable>
         </View>
 
         <View style={allStyles.modalContent}>
-          <ScrollView
-            style={allStyles.modalScroll}
-            contentContainerStyle={[
-              allStyles.modalBodyWithFooter,
-              { paddingBottom: Math.max(20, insets.bottom + 20) },
-            ]}
-          >
-            {errorMessage ? <Text style={allStyles.errorText}>{errorMessage}</Text> : null}
-
           {selectedTemplate === 'generalRx' ? (
-            <GeneralRxForm
-              token={token}
-              facilityId={facilityId}
-              prescriptionStatus={activeGeneralRx.prescriptionStatus}
-              setPrescriptionStatus={activeGeneralRx.setPrescriptionStatus}
-              weight={activeGeneralRx.weight}
-              setWeight={activeGeneralRx.setWeight}
-              bloodPressure={activeGeneralRx.bloodPressure}
-              setBloodPressure={activeGeneralRx.setBloodPressure}
-              temprature={activeGeneralRx.temprature}
-              setTemprature={activeGeneralRx.setTemprature}
-              bloodSugar={activeGeneralRx.bloodSugar}
-              setBloodSugar={activeGeneralRx.setBloodSugar}
-              generalRxComplaint={activeGeneralRx.generalRxComplaint}
-              setGeneralRxComplaint={activeGeneralRx.setGeneralRxComplaint}
-              comorbidities={activeGeneralRx.comorbidities}
-              toggleComorbidity={activeGeneralRx.toggleComorbidity}
-              comorbiditiesNotes={activeGeneralRx.comorbiditiesNotes}
-              setComorbiditiesNotes={activeGeneralRx.setComorbiditiesNotes}
-              medicalAndSurgicalHistory={activeGeneralRx.medicalAndSurgicalHistory}
-              setMedicalAndSurgicalHistory={activeGeneralRx.setMedicalAndSurgicalHistory}
-              generalRxDiagnosis={activeGeneralRx.generalRxDiagnosis}
-              setGeneralRxDiagnosis={activeGeneralRx.setGeneralRxDiagnosis}
-              currentMedicine={activeGeneralRx.currentMedicine}
-              updateCurrentMedicine={activeGeneralRx.updateCurrentMedicine}
-              generalRxMedicines={activeGeneralRx.generalRxMedicines}
-              addMedicine={activeGeneralRx.addMedicine}
-              updateMedicine={activeGeneralRx.updateMedicine}
-              removeMedicine={activeGeneralRx.removeMedicine}
-              currentTest={activeGeneralRx.currentTest}
-              updateCurrentTest={activeGeneralRx.updateCurrentTest}
-              generalRxTests={activeGeneralRx.generalRxTests}
-              addTest={activeGeneralRx.addTest}
-              updateTest={activeGeneralRx.updateTest}
-              removeTest={activeGeneralRx.removeTest}
-              generalRxAdditionalNotes={activeGeneralRx.generalRxAdditionalNotes}
-              setGeneralRxAdditionalNotes={activeGeneralRx.setGeneralRxAdditionalNotes}
-              generalRxFollowupDate={activeGeneralRx.generalRxFollowupDate}
-              setGeneralRxFollowupDate={activeGeneralRx.setGeneralRxFollowupDate}
-            />
-          ) : null}
+            <View style={{ flex: 1 }}>
+              {errorMessage ? <Text style={allStyles.errorText}>{errorMessage}</Text> : null}
+              <GeneralRxForm
+                token={token}
+                facilityId={facilityId}
+                visible={visible}
+                saving={saving}
+                onSave={() => void saveRecord()}
+                prescriptionStatus={activeGeneralRx.prescriptionStatus}
+                setPrescriptionStatus={activeGeneralRx.setPrescriptionStatus}
+                weight={activeGeneralRx.weight}
+                setWeight={activeGeneralRx.setWeight}
+                height={activeGeneralRx.height}
+                setHeight={activeGeneralRx.setHeight}
+                heightUnit={activeGeneralRx.heightUnit}
+                setHeightUnit={activeGeneralRx.setHeightUnit}
+                bloodPressure={activeGeneralRx.bloodPressure}
+                setBloodPressure={activeGeneralRx.setBloodPressure}
+                temprature={activeGeneralRx.temprature}
+                setTemprature={activeGeneralRx.setTemprature}
+                bloodSugar={activeGeneralRx.bloodSugar}
+                setBloodSugar={activeGeneralRx.setBloodSugar}
+                generalRxComplaint={activeGeneralRx.generalRxComplaint}
+                setGeneralRxComplaint={activeGeneralRx.setGeneralRxComplaint}
+                comorbidities={activeGeneralRx.comorbidities}
+                toggleComorbidity={activeGeneralRx.toggleComorbidity}
+                updateComorbidityAdditionalText={activeGeneralRx.updateComorbidityAdditionalText}
+                comorbiditiesNotes={activeGeneralRx.comorbiditiesNotes}
+                setComorbiditiesNotes={activeGeneralRx.setComorbiditiesNotes}
+                medicalAndSurgicalHistory={activeGeneralRx.medicalAndSurgicalHistory}
+                setMedicalAndSurgicalHistory={activeGeneralRx.setMedicalAndSurgicalHistory}
+                generalRxDiagnosis={activeGeneralRx.generalRxDiagnosis}
+                setGeneralRxDiagnosis={activeGeneralRx.setGeneralRxDiagnosis}
+                currentMedicine={activeGeneralRx.currentMedicine}
+                updateCurrentMedicine={activeGeneralRx.updateCurrentMedicine}
+                generalRxMedicines={activeGeneralRx.generalRxMedicines}
+                addMedicine={activeGeneralRx.addMedicine}
+                updateMedicine={activeGeneralRx.updateMedicine}
+                removeMedicine={activeGeneralRx.removeMedicine}
+                currentTest={activeGeneralRx.currentTest}
+                updateCurrentTest={activeGeneralRx.updateCurrentTest}
+                generalRxTests={activeGeneralRx.generalRxTests}
+                addTest={activeGeneralRx.addTest}
+                updateTest={activeGeneralRx.updateTest}
+                removeTest={activeGeneralRx.removeTest}
+                generalRxAdditionalNotes={activeGeneralRx.generalRxAdditionalNotes}
+                setGeneralRxAdditionalNotes={activeGeneralRx.setGeneralRxAdditionalNotes}
+                generalRxFollowupDate={activeGeneralRx.generalRxFollowupDate}
+                setGeneralRxFollowupDate={activeGeneralRx.setGeneralRxFollowupDate}
+              />
+            </View>
+          ) : (
+            <>
+            <ScrollView
+              style={allStyles.modalScroll}
+              contentContainerStyle={[
+                allStyles.modalBodyWithFooter,
+                { paddingBottom: Math.max(20, insets.bottom + 20) },
+              ]}
+            >
+              {errorMessage ? <Text style={allStyles.errorText}>{errorMessage}</Text> : null}
 
-          {selectedTemplate === 'physiotherapyRx' ? (
-            <PhysiotherapyRxForm
-              token={token}
-              facilityId={facilityId}
-              prescriptionStatus={activePhysiotherapyRx.prescriptionStatus}
-              setPrescriptionStatus={activePhysiotherapyRx.setPrescriptionStatus}
-              physio={activePhysiotherapyRx.physio}
-              updatePhysioField={activePhysiotherapyRx.updatePhysioField}
-              toggleSelectable={activePhysiotherapyRx.toggleSelectable}
-            />
-          ) : null}
+              {selectedTemplate === 'physiotherapyRx' ? (
+                <PhysiotherapyRxForm
+                  token={token}
+                  facilityId={facilityId}
+                  prescriptionStatus={activePhysiotherapyRx.prescriptionStatus}
+                  setPrescriptionStatus={activePhysiotherapyRx.setPrescriptionStatus}
+                  physio={activePhysiotherapyRx.physio}
+                  updatePhysioField={activePhysiotherapyRx.updatePhysioField}
+                  toggleSelectable={activePhysiotherapyRx.toggleSelectable}
+                />
+              ) : null}
 
-          {selectedTemplate === 'frozenShoulderRx' ? (
+              {selectedTemplate === 'frozenShoulderRx' ? (
             <>
               <Text style={allStyles.label}>Status</Text>
               <View style={allStyles.typeRow}>
@@ -1396,9 +1432,9 @@ export function BaseRecordTemplateModal({
                 {...withAiContext('dos_donts', 'Frozen shoulder precautions and restrictions.', 'Use clear do and do-not guidance.')}
               />
             </>
-          ) : null}
+              ) : null}
 
-          {selectedTemplate === 'dentalRx' ? (
+              {selectedTemplate === 'dentalRx' ? (
             <>
               <Text style={allStyles.label}>Status</Text>
               <View style={allStyles.typeRow}>
@@ -1447,9 +1483,9 @@ export function BaseRecordTemplateModal({
               <Text style={allStyles.label}>Follow-up Date</Text>
               <TextInput value={dentalFollowupDate} onChangeText={setDentalFollowupDate} style={allStyles.input} placeholder="YYYY-MM-DD" />
             </>
-          ) : null}
+              ) : null}
 
-          {selectedTemplate === 'labReport' ? (
+              {selectedTemplate === 'labReport' ? (
             <>
               <Text style={allStyles.label}>Status</Text>
               <View style={allStyles.typeRow}>
@@ -1657,9 +1693,9 @@ export function BaseRecordTemplateModal({
                 </>
               ) : null}
             </>
-          ) : null}
+              ) : null}
 
-          {selectedTemplate === 'generalNotes' ? (
+              {selectedTemplate === 'generalNotes' ? (
             <>
               <Text style={allStyles.label}>General Notes</Text>
               <SpeechEnabledMultilineInput
@@ -1670,9 +1706,9 @@ export function BaseRecordTemplateModal({
                 {...withAiContext('other', 'General clinical note.', 'Use concise professional clinical tone.')}
               />
             </>
-          ) : null}
+              ) : null}
 
-          {selectedTemplate === 'physiotherapyTxNotes' ? (
+              {selectedTemplate === 'physiotherapyTxNotes' ? (
             <>
               <Text style={allStyles.label}>Pain Level</Text>
               <TextInput value={physioTxPainLevel} onChangeText={setPhysioTxPainLevel} style={allStyles.input} keyboardType="numeric" placeholder="0-10" />
@@ -1706,9 +1742,9 @@ export function BaseRecordTemplateModal({
                 {...withAiContext('assessment', 'Physiotherapy progress notes.', 'Use objective progress-focused phrasing.')}
               />
             </>
-          ) : null}
+              ) : null}
 
-          {selectedTemplate === 'diagram' ? (
+              {selectedTemplate === 'diagram' ? (
             <>
               <Text style={allStyles.label}>Drawing Name</Text>
               <TextInput value={drawingName} onChangeText={setDrawingName} style={allStyles.input} placeholder="Body map notes" />
@@ -1716,19 +1752,20 @@ export function BaseRecordTemplateModal({
               <Text style={allStyles.label}>Canvas</Text>
               <DrawingCanvasEditor initialJson={drawingJson} onChange={setDrawingJson} />
             </>
-          ) : null}
+              ) : null}
 
-          </ScrollView>
-
-          <View style={[allStyles.modalFooter, { paddingBottom: Math.max(14, insets.bottom + 14) }]}>
-            <Pressable
-              style={[allStyles.filterButton, allStyles.modalFooterButton, saving ? allStyles.disabledButton : null]}
-              disabled={saving}
-              onPress={() => void saveRecord()}
-            >
-              <Text style={allStyles.filterButtonText}>{saving ? 'Saving...' : isEditing ? 'Update Record' : 'Save Record'}</Text>
-            </Pressable>
-          </View>
+            </ScrollView>
+            <View style={[allStyles.modalFooter, { paddingBottom: Math.max(14, insets.bottom + 14) }]}>
+              <Pressable
+                style={[allStyles.filterButton, allStyles.modalFooterButton, saving ? allStyles.disabledButton : null]}
+                disabled={saving}
+                onPress={() => void saveRecord()}
+              >
+                <Text style={allStyles.filterButtonText}>{saving ? 'Saving...' : isEditing ? 'Update Record' : 'Save Record'}</Text>
+              </Pressable>
+            </View>
+            </>
+          )}
         </View>
       </View>
     </Modal>

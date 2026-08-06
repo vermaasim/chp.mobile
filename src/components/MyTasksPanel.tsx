@@ -342,6 +342,7 @@ const styles = StyleSheet.create({
     borderColor: themeColors.border,
     backgroundColor: themeColors.surface,
     padding: 10,
+    marginTop: 10,
   },
   metricsRow: {
     flexDirection: 'row',

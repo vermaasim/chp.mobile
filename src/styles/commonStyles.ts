@@ -624,6 +624,7 @@ export const taskDetailsPanelStyles = StyleSheet.create({
   panelRoot: {
     flex: 1,
     position: 'relative',
+    paddingHorizontal: 10,
   },
   loadingWrap: {
     paddingVertical: 14,
@@ -653,6 +654,7 @@ export const taskDetailsPanelStyles = StyleSheet.create({
     backgroundColor: themeColors.surface,
     borderWidth: 1,
     borderColor: themeColors.border,
+    marginTop: 10,
   },
   statusRow: {
     flexDirection: 'row',
@@ -1210,6 +1212,54 @@ export const taskDetailsPanelStyles = StyleSheet.create({
   previewBody: {
     padding: 14,
     gap: 8,
+  },
+  previewBodyWithStickyFooter: {
+    paddingBottom: 98,
+  },
+  previewStickyFooter: {
+    borderTopWidth: 1,
+    borderTopColor: themeColors.border,
+    backgroundColor: themeColors.surface,
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 14,
+    flexDirection: 'row',
+    gap: 10,
+  },
+  previewFooterSecondaryButton: {
+    flex: 1,
+    height: 44,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: themeColors.border,
+    backgroundColor: themeColors.surfaceMuted,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  previewFooterPrimaryButton: {
+    flex: 1,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: themeColors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  previewFooterButtonDisabled: {
+    opacity: 0.5,
+  },
+  previewFooterSecondaryButtonText: {
+    color: themeColors.textPrimary,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  previewFooterPrimaryButtonText: {
+    color: themeColors.textOnBrand,
+    fontSize: 14,
+    fontWeight: '700',
   },
   previewText: {
     color: themeColors.textPrimary,

@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import { Linking, Platform } from 'react-native';
 import { API_BASE_URL } from './config';
 import { uploadMedicalRecord } from './worklist';
 import type { PhysiotherapyPrescriptionData } from '../data/physiotherapy';
@@ -450,7 +451,108 @@ function ensureCacheDir() {
   return Paths.cache;
 }
 
+function ensureToken(token: string) {
+  if (!token.trim()) {
+    throw new Error('Authentication token is missing.');
+  }
+}
+
+function isLikelyGuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+async function openOrShareNativeFile(fileUri: string) {
+  try {
+    await Linking.openURL(fileUri);
+    return;
+  } catch {
+    // Fallback to share sheet when direct file opening is unavailable.
+  }
+
+  const canShare = await Sharing.isAvailableAsync();
+  if (canShare) {
+    await Sharing.shareAsync(fileUri);
+    return;
+  }
+
+  throw new Error('Unable to open the downloaded file on this device.');
+}
+
+async function openOrDownloadWebBlob(blob: Blob, targetFileName: string, openInNewTab: boolean) {
+  const webGlobal = globalThis as {
+    URL?: { createObjectURL: (value: Blob) => string; revokeObjectURL: (value: string) => void };
+    open?: (url?: string, target?: string, features?: string) => unknown;
+    document?: {
+      body?: { appendChild: (node: unknown) => void; removeChild: (node: unknown) => void };
+      createElement: (tagName: string) => {
+        href: string;
+        download: string;
+        rel: string;
+        target: string;
+        style: { display: string };
+        click: () => void;
+      };
+    };
+    setTimeout: (handler: () => void, timeout?: number) => unknown;
+  };
+
+  if (!webGlobal.URL || !webGlobal.document) {
+    throw new Error('Web download is not available in this environment.');
+  }
+
+  const blobUrl = webGlobal.URL.createObjectURL(blob);
+
+  if (openInNewTab && webGlobal.open) {
+    const opened = webGlobal.open(blobUrl, '_blank', 'noopener,noreferrer');
+    if (opened) {
+      webGlobal.setTimeout(() => {
+        webGlobal.URL?.revokeObjectURL(blobUrl);
+      }, 60000);
+      return;
+    }
+  }
+
+  const anchor = webGlobal.document.createElement('a');
+  anchor.href = blobUrl;
+  anchor.download = sanitizeFileName(targetFileName);
+  anchor.rel = 'noopener noreferrer';
+  anchor.target = '_blank';
+  anchor.style.display = 'none';
+
+  webGlobal.document.body?.appendChild(anchor);
+  anchor.click();
+  webGlobal.document.body?.removeChild(anchor);
+
+  webGlobal.setTimeout(() => {
+    webGlobal.URL?.revokeObjectURL(blobUrl);
+  }, 1000);
+}
+
+async function downloadRemoteFileWeb(
+  token: string,
+  endpointPath: string,
+  targetFileName: string,
+  openInNewTab: boolean
+) {
+  const response = await axios.get(`${API_BASE_URL}${endpointPath}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: '*/*',
+    },
+    responseType: 'blob',
+  });
+
+  await openOrDownloadWebBlob(response.data as Blob, targetFileName, openInNewTab);
+}
+
 async function downloadAndShareFile(token: string, endpointPath: string, targetFileName: string) {
+  ensureToken(token);
+
+  if (Platform.OS === 'web') {
+    await downloadRemoteFileWeb(token, endpointPath, targetFileName, targetFileName.toLowerCase().endsWith('.pdf'));
+    return targetFileName;
+  }
+
   const directory = ensureCacheDir();
   const file = new File(directory, sanitizeFileName(targetFileName));
   const downloadUrl = `${API_BASE_URL}${endpointPath}`;
@@ -463,32 +565,51 @@ async function downloadAndShareFile(token: string, endpointPath: string, targetF
     idempotent: true,
   });
 
-  const canShare = await Sharing.isAvailableAsync();
-  if (canShare) {
-    await Sharing.shareAsync(file.uri);
-  }
+  await openOrShareNativeFile(file.uri);
 
   return file.uri;
 }
 
 async function writeAndShareTextFile(targetFileName: string, content: string) {
+  if (Platform.OS === 'web') {
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    await openOrDownloadWebBlob(blob, targetFileName, false);
+    return targetFileName;
+  }
+
   const directory = ensureCacheDir();
   const file = new File(directory, sanitizeFileName(targetFileName));
   file.write(content, { encoding: 'utf8' });
 
-  const canShare = await Sharing.isAvailableAsync();
-  if (canShare) {
-    await Sharing.shareAsync(file.uri);
-  }
+  await openOrShareNativeFile(file.uri);
 
   return file.uri;
 }
 
 export async function downloadPrescriptionPdf(token: string, prescriptionId: string, displayId?: string) {
+  const inputId = prescriptionId.trim();
+
+  if (!inputId) {
+    throw new Error('Prescription ID is missing.');
+  }
+
+  let resolvedPrescriptionId = inputId;
+
+  if (!isLikelyGuid(inputId)) {
+    const detail = await getPrescriptionDetail(token, inputId);
+    const canonicalId = detail.id?.trim();
+
+    if (!canonicalId) {
+      throw new Error('Unable to resolve prescription identifier for download.');
+    }
+
+    resolvedPrescriptionId = canonicalId;
+  }
+
   return downloadAndShareFile(
     token,
-    `/api/prescription/download/${prescriptionId}`,
-    `${displayId ?? `prescription-${prescriptionId}`}.pdf`
+    `/api/prescription/download/${encodeURIComponent(resolvedPrescriptionId)}`,
+    `${displayId ?? `prescription-${resolvedPrescriptionId}`}.pdf`
   );
 }
 
@@ -508,6 +629,13 @@ export async function downloadClinicalNoteFile(token: string, noteId: string, di
 
 export async function downloadDrawingFile(token: string, drawingId: string, displayId?: string) {
   const detail = await getDrawingDetail(token, drawingId);
+  if (Platform.OS === 'web') {
+    const blob = new Blob([detail.diagramJson], { type: 'application/json;charset=utf-8' });
+    const targetFileName = `${displayId ?? `drawing-${drawingId}`}.json`;
+    await openOrDownloadWebBlob(blob, targetFileName, false);
+    return targetFileName;
+  }
+
   return writeAndShareTextFile(`${displayId ?? `drawing-${drawingId}`}.json`, detail.diagramJson);
 }
 

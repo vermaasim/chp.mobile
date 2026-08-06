@@ -48,6 +48,40 @@ function toStringArray(value: unknown): string[] {
   return [];
 }
 
+function normalizeComorbidityAdditionalText(value: unknown) {
+  return typeof value === 'string' ? value : '';
+}
+
+function toComorbidityArray(value: unknown): SelectableComorbidity[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const mapped: Array<SelectableComorbidity | undefined> = value
+    .map((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) {
+        return undefined;
+      }
+
+      const record = item as Record<string, unknown>;
+      const mappedValue = asString(record.value);
+      const mappedDisplay = asString(record.displayValue) || mappedValue;
+
+      if (!mappedValue) {
+        return undefined;
+      }
+
+      return {
+        value: mappedValue,
+        displayValue: mappedDisplay,
+        selected: Boolean(record.selected),
+        additionalText: normalizeComorbidityAdditionalText(record.additionalText),
+      };
+    });
+
+  return mapped.filter((item): item is SelectableComorbidity => item !== undefined);
+}
+
 function asMedicine(value: unknown, index: number): GeneralPrescriptionMedicine {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     const record = value as Record<string, unknown>;
@@ -125,6 +159,8 @@ export function useGeneralRxForm({ visible, editingRecord }: UseGeneralRxFormPar
 
   const [prescriptionStatus, setPrescriptionStatus] = useState<PrescriptionStatus>('Draft');
   const [weight, setWeight] = useState(defaults.weight);
+  const [height, setHeight] = useState(defaults.height);
+  const [heightUnit, setHeightUnit] = useState(defaults.heightUnit);
   const [bloodPressure, setBloodPressure] = useState(defaults.bloodPressure);
   const [temprature, setTemprature] = useState(defaults.temprature);
   const [bloodSugar, setBloodSugar] = useState(defaults.bloodSugar);
@@ -147,6 +183,19 @@ export function useGeneralRxForm({ visible, editingRecord }: UseGeneralRxFormPar
           ? {
               ...item,
               selected: !item.selected,
+            }
+          : item
+      )
+    );
+  };
+
+  const updateComorbidityAdditionalText = (value: string, additionalText: string) => {
+    setComorbidities((previousValue) =>
+      previousValue.map((item) =>
+        item.value === value
+          ? {
+              ...item,
+              additionalText,
             }
           : item
       )
@@ -211,7 +260,14 @@ export function useGeneralRxForm({ visible, editingRecord }: UseGeneralRxFormPar
     const resolvedTemplate = mapEditingRecordToTemplate(editingRecord);
     const prescriptionPayload = (editingRecord?.prescription?.detailedPrescription as unknown as Record<string, unknown>) ?? {};
     const legacyPastHistory = asRecord(prescriptionPayload.pastHistory);
+    const objectComorbidities = toComorbidityArray(prescriptionPayload.comorbidities);
     const selectedComorbidities = new Set(toStringArray(prescriptionPayload.comorbidities).map((item) => item.toLowerCase()));
+    const selectedComorbiditiesFromObject = new Set(
+      objectComorbidities.filter((item) => item.selected).map((item) => item.value.toLowerCase())
+    );
+    const additionalTextByValue = new Map(
+      objectComorbidities.map((item) => [item.value.toLowerCase(), item.additionalText ?? ''])
+    );
 
     const hasLegacyHtn = asText(legacyPastHistory.htn).toLowerCase() === 'yes';
     const hasLegacyDm2 = asText(legacyPastHistory.dm2).toLowerCase() === 'yes';
@@ -223,6 +279,8 @@ export function useGeneralRxForm({ visible, editingRecord }: UseGeneralRxFormPar
 
     setPrescriptionStatus((editingRecord?.prescription?.status as PrescriptionStatus) ?? 'Draft');
     setWeight(asString(prescriptionPayload.weight));
+    setHeight(asString(prescriptionPayload.height));
+    setHeightUnit(asString(prescriptionPayload.heightUnit) || defaults.heightUnit);
     setBloodPressure(asString(prescriptionPayload.bloodPressure));
     setTemprature(asString(prescriptionPayload.temprature));
     setBloodSugar(asString(prescriptionPayload.bloodSugar));
@@ -236,7 +294,11 @@ export function useGeneralRxForm({ visible, editingRecord }: UseGeneralRxFormPar
 
         return {
           ...item,
-          selected: selectedComorbidities.has(item.value.toLowerCase()) || isLegacyMapped,
+          selected:
+            selectedComorbiditiesFromObject.has(item.value.toLowerCase()) ||
+            selectedComorbidities.has(item.value.toLowerCase()) ||
+            isLegacyMapped,
+          additionalText: additionalTextByValue.get(item.value.toLowerCase()) ?? item.additionalText ?? '',
         };
       })
     );
@@ -256,6 +318,10 @@ export function useGeneralRxForm({ visible, editingRecord }: UseGeneralRxFormPar
     setPrescriptionStatus,
     weight,
     setWeight,
+    height,
+    setHeight,
+    heightUnit,
+    setHeightUnit,
     bloodPressure,
     setBloodPressure,
     temprature,
@@ -266,6 +332,7 @@ export function useGeneralRxForm({ visible, editingRecord }: UseGeneralRxFormPar
     setGeneralRxComplaint,
     comorbidities,
     toggleComorbidity,
+    updateComorbidityAdditionalText,
     comorbiditiesNotes,
     setComorbiditiesNotes,
     medicalAndSurgicalHistory,
