@@ -308,6 +308,7 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
   const [activeRecordModalTemplate, setActiveRecordModalTemplate] = useState<RecordTemplateKey | null>(null);
   const [editingRecord, setEditingRecord] = useState<EditableRecordState | null>(null);
   const [medicalRecordModalVisible, setMedicalRecordModalVisible] = useState(false);
+  const [diagramModalVisible, setDiagramModalVisible] = useState(false);
   const [previewVisible, setPreviewVisible] = useState(false);
   const [previewTitle, setPreviewTitle] = useState('');
   const [previewText, setPreviewText] = useState('');
@@ -735,7 +736,12 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
 
       if (nextEditingRecord) {
         setEditingRecord(nextEditingRecord);
-        setActiveRecordModalTemplate(mapEditingRecordToTemplate(nextEditingRecord));
+
+        if (nextEditingRecord.type === 'drawing') {
+          setDiagramModalVisible(true);
+        } else {
+          setActiveRecordModalTemplate(mapEditingRecordToTemplate(nextEditingRecord));
+        }
       }
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to load record for edit.');
@@ -831,12 +837,19 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
       return;
     }
 
+    if (key === 'diagram') {
+      setEditingRecord(null);
+      setDiagramModalVisible(true);
+      return;
+    }
+
     setEditingRecord(null);
     setActiveRecordModalTemplate(key);
   };
 
   const closeRecordModal = () => {
     setActiveRecordModalTemplate(null);
+    setDiagramModalVisible(false);
     setEditingRecord(null);
   };
 
@@ -1401,7 +1414,7 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
       />
 
       <AddDiagramModal
-        visible={activeRecordModalTemplate === 'diagram'}
+        visible={diagramModalVisible}
         token={token}
         facilityId={facilityId}
         serviceId={task.id}

@@ -3,13 +3,11 @@ import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-nativ
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   addClinicalNote,
-  addDrawingRecord,
   addPrescriptionRecord,
   type ClinicalNoteDetail,
   type DrawingDetail,
   type PrescriptionDetail,
   updateClinicalNote,
-  updateDrawingRecord,
   updatePrescriptionRecord,
 } from '../api/records';
 import {
@@ -30,7 +28,6 @@ import {
 import { allStyles } from '../styles/commonStyles';
 import type { TaskDetailRecordType } from '../types/worklist';
 import { themeColors } from '../theme/colors';
-import { DrawingCanvasEditor } from './DrawingCanvasEditor';
 import { SpeechEnabledMultilineInput } from './SpeechEnabledMultilineInput';
 import { GeneralRxForm } from './record-modals/general-rx/GeneralRxForm';
 import { buildGeneralRxPayload, hasGeneralRxContent } from './record-modals/general-rx/generalRxSave';
@@ -449,8 +446,6 @@ export function BaseRecordTemplateModal({
     },
   });
 
-  const [drawingName, setDrawingName] = useState('');
-  const [drawingJson, setDrawingJson] = useState<string>(JSON.stringify({ version: 'mobile-1', background: '#ffffff', strokes: [] }));
   const isEditing = Boolean(editingRecord);
   const activeGeneralRx: GeneralRxBindings =
     generalRxBindings ??
@@ -724,9 +719,6 @@ export function BaseRecordTemplateModal({
       .filter((item) => item.testName || item.parameters.length > 0);
     setLabTests(parsedLabTests);
     setLabSelectedTestsCsv(toCsv(parsedLabTests.map((item) => item.testName).filter(Boolean)));
-
-    setDrawingName(editingRecord?.drawing?.name ?? '');
-    setDrawingJson(editingRecord?.drawing?.diagramJson ?? JSON.stringify({ version: 'mobile-1', background: '#ffffff', strokes: [] }));
   }, [editingRecord, isEditing, template, visible]);
 
   const closeModal = () => {
@@ -1211,23 +1203,6 @@ export function BaseRecordTemplateModal({
         }
       }
 
-      if (selectedTemplate === 'diagram') {
-        if (!drawingName.trim()) {
-          setErrorMessage('Please provide a drawing name.');
-          return;
-        }
-
-        if (isEditing && editingRecord?.id) {
-          await updateDrawingRecord(token, editingRecord.id, drawingName.trim(), drawingJson);
-        } else {
-          await addDrawingRecord(token, {
-            serviceId,
-            name: drawingName.trim(),
-            diagramJson: drawingJson,
-          });
-        }
-      }
-
       onSaved(toRecordType(mapTemplateToRecordType(selectedTemplate)));
       onClose();
     } catch (error) {
@@ -1254,9 +1229,20 @@ export function BaseRecordTemplateModal({
                   ? isEditing
                     ? 'Edit Frozen Shoulder Prescription'
                     : 'Add Frozen Shoulder Prescription'
-                : isEditing
-                  ? 'Edit Record'
-                  : 'Add Record'}
+                : selectedTemplate === 'generalNotes'
+                  ? isEditing
+                    ? 'Edit General Notes'
+                    : 'Add General Notes'
+                  : selectedTemplate === 'physiotherapyTxNotes'
+                    ? isEditing
+                      ? 'Edit Physiotherapy Tx Notes'
+                      : 'Add Physiotherapy Tx Notes'
+                  : selectedTemplate === 'labReport'
+                      ? isEditing
+                        ? 'Edit Lab Report'
+                        : 'Add Lab Report'
+                      : ''
+              }
           </Text>
           <Pressable onPress={closeModal}>
             <Text style={allStyles.closeText}>Close</Text>
@@ -1495,223 +1481,13 @@ export function BaseRecordTemplateModal({
             </>
               ) : null}
 
-              {selectedTemplate === 'labReport' ? (
-            <>
-              <Text style={allStyles.label}>Status</Text>
-              <View style={allStyles.typeRow}>
-                {STATUS_VALUES.map((status) => (
-                  <Pressable
-                    key={`lab-${status}`}
-                    style={[allStyles.typeChip, prescriptionStatus === status ? allStyles.typeChipActive : null]}
-                    onPress={() => setPrescriptionStatus(status)}
-                  >
-                    <Text style={[allStyles.typeChipText, prescriptionStatus === status ? allStyles.typeChipTextActive : null]}>{status}</Text>
-                  </Pressable>
-                ))}
-              </View>
-
-              <Text style={allStyles.label}>Sample ID</Text>
-              <TextInput value={labSampleId} onChangeText={setLabSampleId} style={allStyles.input} placeholder="Sample identifier" />
-
-              <Text style={allStyles.label}>Sample Type</Text>
-              <TextInput value={labSampleType} onChangeText={setLabSampleType} style={allStyles.input} placeholder="Blood / Urine / etc" />
-
-              <Text style={allStyles.label}>Collection Date Time</Text>
-              <TextInput value={labCollectionDateTime} onChangeText={setLabCollectionDateTime} style={allStyles.input} placeholder="YYYY-MM-DD HH:mm" />
-
-              <Text style={allStyles.label}>Collection Location</Text>
-              <TextInput value={labCollectionLocation} onChangeText={setLabCollectionLocation} style={allStyles.input} placeholder="Lab / OPD / Ward" />
-
-              <Text style={allStyles.label}>Collection Method</Text>
-              <TextInput value={labCollectionMethod} onChangeText={setLabCollectionMethod} style={allStyles.input} placeholder="Venipuncture / Swab" />
-
-              <Text style={allStyles.label}>Collected By</Text>
-              <TextInput value={labCollectedBy} onChangeText={setLabCollectedBy} style={allStyles.input} placeholder="Technician name" />
-
-              <Text style={allStyles.label}>Report Date</Text>
-              <TextInput value={labReportDate} onChangeText={setLabReportDate} style={allStyles.input} placeholder="YYYY-MM-DD" />
-
-              <Text style={allStyles.label}>Collection Notes</Text>
-              <SpeechEnabledMultilineInput
-                value={labCollectionNotes}
-                onChangeText={setLabCollectionNotes}
-                numberOfLines={3}
-                {...withAiContext('assessment', 'Lab sample collection notes.', 'Use objective sample collection wording.')}
-              />
-
-              <Text style={allStyles.label}>Additional Notes</Text>
-              <SpeechEnabledMultilineInput
-                value={labAdditionalNotes}
-                onChangeText={setLabAdditionalNotes}
-                numberOfLines={3}
-                {...withAiContext('other', 'Lab report additional notes.', 'Use concise professional lab note style.')}
-              />
-
-              <Text style={allStyles.label}>Quick Add Tests (comma separated)</Text>
-              <TextInput value={labSelectedTestsCsv} onChangeText={setLabSelectedTestsCsv} style={allStyles.input} placeholder="Hematology, Biochemistry" />
-              <View style={allStyles.typeRow}>
-                <Pressable style={allStyles.typeChip} onPress={addLabTestsFromCsv}>
-                  <Text style={allStyles.typeChipText}>Add Tests</Text>
-                </Pressable>
-                <Pressable
-                  style={allStyles.typeChip}
-                  onPress={() =>
-                    setLabTests((previousValue) => [
-                      ...previousValue,
-                      {
-                        testId: `MOB-${previousValue.length + 1}`,
-                        testName: '',
-                        referenceText: '',
-                        parameters: [],
-                      },
-                    ])
-                  }
-                >
-                  <Text style={allStyles.typeChipText}>Add Empty Test</Text>
-                </Pressable>
-              </View>
-
-              {labTests.length > 0 ? (
-                <>
-                  <Text style={allStyles.label}>Detailed Tests</Text>
-                  {labTests.map((test, testIndex) => (
-                    <View
-                      key={`${test.testId}-${testIndex}`}
-                      style={{ borderWidth: 1, borderColor: themeColors.border, borderRadius: 10, padding: 10, marginBottom: 10 }}
-                    >
-                      <View style={allStyles.typeRow}>
-                        <Text style={[allStyles.label, { marginBottom: 0, flex: 1 }]}>Test {testIndex + 1}</Text>
-                        <Pressable style={allStyles.typeChip} onPress={() => removeLabTest(testIndex)}>
-                          <Text style={allStyles.typeChipText}>Remove</Text>
-                        </Pressable>
-                      </View>
-
-                      <Text style={allStyles.label}>Test ID</Text>
-                      <TextInput
-                        value={test.testId}
-                        onChangeText={(value) => updateLabTestField(testIndex, 'testId', value)}
-                        style={allStyles.input}
-                        placeholder="e.g. LT12345"
-                      />
-
-                      <Text style={allStyles.label}>Test Name</Text>
-                      <TextInput
-                        value={test.testName}
-                        onChangeText={(value) => updateLabTestField(testIndex, 'testName', value)}
-                        style={allStyles.input}
-                        placeholder="e.g. Hematology"
-                      />
-
-                      <Text style={allStyles.label}>Reference Text</Text>
-                      <SpeechEnabledMultilineInput
-                        value={test.referenceText}
-                        onChangeText={(value) => updateLabTestField(testIndex, 'referenceText', value)}
-                        numberOfLines={3}
-                        {...withAiContext('assessment', 'Lab test reference text.', 'Use concise clinical-lab wording.')}
-                      />
-
-                      <View style={allStyles.typeRow}>
-                        <Text style={[allStyles.label, { marginBottom: 0, flex: 1 }]}>Parameters</Text>
-                        <Pressable style={allStyles.typeChip} onPress={() => addLabParameter(testIndex)}>
-                          <Text style={allStyles.typeChipText}>Add Parameter</Text>
-                        </Pressable>
-                      </View>
-
-                      {test.parameters.map((parameter, parameterIndex) => (
-                        <View
-                          key={`${parameter.parameterId}-${parameterIndex}`}
-                          style={{ borderWidth: 1, borderColor: themeColors.border, borderRadius: 8, padding: 8, marginBottom: 8 }}
-                        >
-                          <View style={allStyles.typeRow}>
-                            <Text style={[allStyles.label, { marginBottom: 0, flex: 1 }]}>Parameter {parameterIndex + 1}</Text>
-                            <Pressable style={allStyles.typeChip} onPress={() => removeLabParameter(testIndex, parameterIndex)}>
-                              <Text style={allStyles.typeChipText}>Remove</Text>
-                            </Pressable>
-                          </View>
-
-                          <Text style={allStyles.label}>Name</Text>
-                          <TextInput
-                            value={parameter.parameterName}
-                            onChangeText={(value) => updateLabParameterField(testIndex, parameterIndex, 'parameterName', value)}
-                            style={allStyles.input}
-                            placeholder="e.g. Hemoglobin"
-                          />
-
-                          <Text style={allStyles.label}>Result Value</Text>
-                          <TextInput
-                            value={parameter.resultValue}
-                            onChangeText={(value) => updateLabParameterField(testIndex, parameterIndex, 'resultValue', value)}
-                            style={allStyles.input}
-                            placeholder="e.g. 13.5"
-                          />
-
-                          <Text style={allStyles.label}>Unit</Text>
-                          <TextInput
-                            value={parameter.unit}
-                            onChangeText={(value) => updateLabParameterField(testIndex, parameterIndex, 'unit', value)}
-                            style={allStyles.input}
-                            placeholder="e.g. g/dL"
-                          />
-
-                          <Text style={allStyles.label}>Lower Limit</Text>
-                          <TextInput
-                            value={parameter.lowerLimit}
-                            onChangeText={(value) => updateLabParameterField(testIndex, parameterIndex, 'lowerLimit', value)}
-                            style={allStyles.input}
-                            placeholder="e.g. 13.0"
-                          />
-
-                          <Text style={allStyles.label}>Upper Limit</Text>
-                          <TextInput
-                            value={parameter.upperLimit}
-                            onChangeText={(value) => updateLabParameterField(testIndex, parameterIndex, 'upperLimit', value)}
-                            style={allStyles.input}
-                            placeholder="e.g. 17.0"
-                          />
-
-                          <Text style={allStyles.label}>Status</Text>
-                          <TextInput
-                            value={parameter.status}
-                            onChangeText={(value) => updateLabParameterField(testIndex, parameterIndex, 'status', value)}
-                            style={allStyles.input}
-                            placeholder="Normal/High/Low"
-                          />
-
-                          <Text style={allStyles.label}>Notes</Text>
-                          <SpeechEnabledMultilineInput
-                            value={parameter.notes}
-                            onChangeText={(value) => updateLabParameterField(testIndex, parameterIndex, 'notes', value)}
-                            numberOfLines={2}
-                            {...withAiContext('assessment', 'Lab parameter notes.', 'Use concise interpretation-oriented wording.')}
-                          />
-
-                          <Text style={allStyles.label}>Selected</Text>
-                          <View style={allStyles.typeRow}>
-                            <Pressable
-                              style={[allStyles.typeChip, parameter.selected ? allStyles.typeChipActive : null]}
-                              onPress={() => updateLabParameterField(testIndex, parameterIndex, 'selected', !parameter.selected)}
-                            >
-                              <Text style={[allStyles.typeChipText, parameter.selected ? allStyles.typeChipTextActive : null]}>
-                                {parameter.selected ? 'Yes' : 'No'}
-                              </Text>
-                            </Pressable>
-                          </View>
-                        </View>
-                      ))}
-                    </View>
-                  ))}
-                </>
-              ) : null}
-            </>
-              ) : null}
-
               {selectedTemplate === 'generalNotes' ? (
             <>
               <Text style={allStyles.label}>General Notes</Text>
               <SpeechEnabledMultilineInput
                 value={generalNoteText}
                 onChangeText={setGeneralNoteText}
-                numberOfLines={6}
+                numberOfLines={16}
                 placeholder="Add your note"
                 {...withAiContext('other', 'General clinical note.', 'Use concise professional clinical tone.')}
               />
@@ -1740,30 +1516,11 @@ export function BaseRecordTemplateModal({
               <SpeechEnabledMultilineInput
                 value={physioTxTreatmentNotes}
                 onChangeText={setPhysioTxTreatmentNotes}
-                numberOfLines={4}
+                numberOfLines={16}
                 {...withAiContext('treatment', 'Physiotherapy treatment notes.', 'Use concise treatment-session language.')}
               />
-
-              <Text style={allStyles.label}>Progress Notes</Text>
-              <SpeechEnabledMultilineInput
-                value={physioTxProgressNotes}
-                onChangeText={setPhysioTxProgressNotes}
-                numberOfLines={4}
-                {...withAiContext('assessment', 'Physiotherapy progress notes.', 'Use objective progress-focused phrasing.')}
-              />
             </>
               ) : null}
-
-              {selectedTemplate === 'diagram' ? (
-            <>
-              <Text style={allStyles.label}>Drawing Name</Text>
-              <TextInput value={drawingName} onChangeText={setDrawingName} style={allStyles.input} placeholder="Body map notes" />
-
-              <Text style={allStyles.label}>Canvas</Text>
-              <DrawingCanvasEditor initialJson={drawingJson} onChange={setDrawingJson} />
-            </>
-              ) : null}
-
             </ScrollView>
             <View style={[allStyles.modalFooter, { paddingBottom: Math.max(14, insets.bottom + 14) }]}>
               <Pressable
