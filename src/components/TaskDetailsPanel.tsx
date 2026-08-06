@@ -55,6 +55,12 @@ type GeneralRxPreviewMeta = {
   visitLabel?: string;
 };
 
+type PhysioRxPreviewMeta = {
+  displayId?: string;
+  status?: string;
+  issuedAt?: string;
+};
+
 interface TaskDetailsPanelProps {
   token: string;
   taskId: string;
@@ -300,6 +306,10 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
   const [previewText, setPreviewText] = useState('');
   const [previewDrawingJson, setPreviewDrawingJson] = useState<string | null>(null);
   const [previewPhysio, setPreviewPhysio] = useState<PhysiotherapyPrescriptionData | null>(null);
+  const [previewPhysioMeta, setPreviewPhysioMeta] = useState<PhysioRxPreviewMeta | null>(null);
+  const [previewPhysioRecord, setPreviewPhysioRecord] = useState<TaskDetailRecord | null>(null);
+  const [previewPhysioCanEdit, setPreviewPhysioCanEdit] = useState(false);
+  const [previewPhysioCanDownloadPdf, setPreviewPhysioCanDownloadPdf] = useState(false);
   const [previewGeneralRx, setPreviewGeneralRx] = useState<Record<string, unknown> | null>(null);
   const [previewGeneralRxMeta, setPreviewGeneralRxMeta] = useState<GeneralRxPreviewMeta | null>(null);
   const [previewGeneralRxRecord, setPreviewGeneralRxRecord] = useState<TaskDetailRecord | null>(null);
@@ -439,7 +449,13 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
       if (recordType === 'prescription') {
         const detail = await getPrescriptionDetail(token, record.id);
         const prescriptionTemplate = getPrescriptionTemplateByType(detail.prescriptionType || record.prescriptionType);
-        setPreviewTitle(prescriptionTemplate === 'generalRx' ? 'General Rx' : (detail.displayId || record.displayId || 'Prescription'));
+        setPreviewTitle(
+          prescriptionTemplate === 'generalRx'
+            ? 'General Rx'
+            : prescriptionTemplate === 'physiotherapyRx'
+            ? 'Physiotherapy Rx'
+            : (detail.displayId || record.displayId || 'Prescription')
+        );
         const isUnsupportedPrescription = prescriptionTemplate === 'dentalRx' || prescriptionTemplate === 'labReport';
         const resolvedStatus = detail.status || record.status;
         const isFinalPrescription = isFinalizedStatus(resolvedStatus);
@@ -449,6 +465,10 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
         if (isUnsupportedPrescription) {
           setPreviewText('');
           setShowUnsupportedPrescriptionNotice(true);
+          setPreviewPhysioRecord(null);
+          setPreviewPhysioCanEdit(false);
+          setPreviewPhysioCanDownloadPdf(false);
+          setPreviewPhysioMeta(null);
           setPreviewGeneralRx(null);
           setPreviewGeneralRxMeta(null);
           setPreviewGeneralRxRecord(null);
@@ -457,6 +477,19 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
         } else if (prescriptionTemplate === 'physiotherapyRx') {
           setPreviewText('');
           setShowUnsupportedPrescriptionNotice(false);
+          // Keep canonical prescription id for preview actions like download/edit.
+          setPreviewPhysioRecord({
+            ...record,
+            id: detail.id,
+            displayId: detail.displayId || record.displayId,
+          });
+          setPreviewPhysioCanEdit(canEditPrescription);
+          setPreviewPhysioCanDownloadPdf(canDownloadPrescription);
+          setPreviewPhysioMeta({
+            displayId: detail.displayId || record.displayId,
+            status: resolvedStatus,
+            issuedAt: record.createdOn || record.lastModifiedOn,
+          });
           setPreviewGeneralRx(null);
           setPreviewGeneralRxMeta(null);
           setPreviewGeneralRxRecord(null);
@@ -465,6 +498,10 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
         } else if (prescriptionTemplate === 'generalRx') {
           setPreviewText('');
           setShowUnsupportedPrescriptionNotice(false);
+          setPreviewPhysioRecord(null);
+          setPreviewPhysioCanEdit(false);
+          setPreviewPhysioCanDownloadPdf(false);
+          setPreviewPhysioMeta(null);
           setPreviewGeneralRx(asRecord(detail.detailedPrescription));
           setPreviewGeneralRxMeta({
             displayId: detail.displayId || record.displayId,
@@ -486,6 +523,10 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
         } else {
           setPreviewText(createPrescriptionPreviewText(detail.detailedPrescription));
           setShowUnsupportedPrescriptionNotice(false);
+          setPreviewPhysioRecord(null);
+          setPreviewPhysioCanEdit(false);
+          setPreviewPhysioCanDownloadPdf(false);
+          setPreviewPhysioMeta(null);
           setPreviewGeneralRx(null);
           setPreviewGeneralRxMeta(null);
           setPreviewGeneralRxRecord(null);
@@ -508,6 +549,10 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
         setShowUnsupportedPrescriptionNotice(false);
         setPreviewDrawingJson(null);
         setPreviewPhysio(null);
+        setPreviewPhysioRecord(null);
+        setPreviewPhysioCanEdit(false);
+        setPreviewPhysioCanDownloadPdf(false);
+        setPreviewPhysioMeta(null);
         setPreviewGeneralRx(null);
         setPreviewGeneralRxMeta(null);
         setPreviewGeneralRxRecord(null);
@@ -523,6 +568,10 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
         setShowUnsupportedPrescriptionNotice(false);
         setPreviewDrawingJson(detail.diagramJson);
         setPreviewPhysio(null);
+        setPreviewPhysioRecord(null);
+        setPreviewPhysioCanEdit(false);
+        setPreviewPhysioCanDownloadPdf(false);
+        setPreviewPhysioMeta(null);
         setPreviewGeneralRx(null);
       }
 
@@ -532,6 +581,10 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
         setShowUnsupportedPrescriptionNotice(false);
         setPreviewDrawingJson(null);
         setPreviewPhysio(null);
+        setPreviewPhysioRecord(null);
+        setPreviewPhysioCanEdit(false);
+        setPreviewPhysioCanDownloadPdf(false);
+        setPreviewPhysioMeta(null);
         setPreviewGeneralRx(null);
         setPreviewGeneralRxMeta(null);
         setPreviewGeneralRxRecord(null);
@@ -1123,13 +1176,13 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
               <Text style={taskDetailsPanelStyles.previewClose}>Close</Text>
             </Pressable>
           </View>
-          <ScrollView contentContainerStyle={[taskDetailsPanelStyles.previewBody, previewGeneralRx ? taskDetailsPanelStyles.previewBodyWithStickyFooter : null]}>
+          <ScrollView contentContainerStyle={[taskDetailsPanelStyles.previewBody, previewGeneralRx || previewPhysio ? taskDetailsPanelStyles.previewBodyWithStickyFooter : null]}>
             {showUnsupportedPrescriptionNotice ? (
               <UnsupportedPrescriptionNotice />
             ) : previewDrawingJson ? (
               <DrawingCanvasEditor initialJson={previewDrawingJson} readOnly />
             ) : previewPhysio ? (
-              <PhysiotherapyReadOnlyView data={previewPhysio} />
+              <PhysiotherapyReadOnlyView data={previewPhysio} meta={previewPhysioMeta ?? undefined} />
             ) : previewGeneralRx ? (
               <GeneralRxReadOnlyView
                 data={previewGeneralRx}
@@ -1140,20 +1193,27 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
             )}
           </ScrollView>
 
-          {previewGeneralRx ? (
+          {previewGeneralRx || previewPhysio ? (
             <View style={taskDetailsPanelStyles.previewStickyFooter}>
               <Pressable
                 accessibilityRole="button"
-                disabled={!previewGeneralRxCanEdit}
+                disabled={previewGeneralRx ? !previewGeneralRxCanEdit : !previewPhysioCanEdit}
                 onPress={() => {
-                  if (!previewGeneralRxRecord) {
+                  const editableRecord = previewGeneralRx ? previewGeneralRxRecord : previewPhysioRecord;
+
+                  if (!editableRecord) {
                     return;
                   }
 
                   setPreviewVisible(false);
-                  void handleEditRecord(previewGeneralRxRecord);
+                  void handleEditRecord(editableRecord);
                 }}
-                style={[taskDetailsPanelStyles.previewFooterSecondaryButton, !previewGeneralRxCanEdit ? taskDetailsPanelStyles.previewFooterButtonDisabled : null]}
+                style={[
+                  taskDetailsPanelStyles.previewFooterSecondaryButton,
+                  (previewGeneralRx ? !previewGeneralRxCanEdit : !previewPhysioCanEdit)
+                    ? taskDetailsPanelStyles.previewFooterButtonDisabled
+                    : null,
+                ]}
               >
                 <Feather name="edit-2" size={14} color={themeColors.textPrimary} />
                 <Text style={taskDetailsPanelStyles.previewFooterSecondaryButtonText}>Edit</Text>
@@ -1161,15 +1221,22 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
 
               <Pressable
                 accessibilityRole="button"
-                disabled={!previewGeneralRxCanDownloadPdf}
+                disabled={previewGeneralRx ? !previewGeneralRxCanDownloadPdf : !previewPhysioCanDownloadPdf}
                 onPress={() => {
-                  if (!previewGeneralRxRecord) {
+                  const downloadableRecord = previewGeneralRx ? previewGeneralRxRecord : previewPhysioRecord;
+
+                  if (!downloadableRecord) {
                     return;
                   }
 
-                  void handleDownloadRecord(previewGeneralRxRecord);
+                  void handleDownloadRecord(downloadableRecord);
                 }}
-                style={[taskDetailsPanelStyles.previewFooterPrimaryButton, !previewGeneralRxCanDownloadPdf ? taskDetailsPanelStyles.previewFooterButtonDisabled : null]}
+                style={[
+                  taskDetailsPanelStyles.previewFooterPrimaryButton,
+                  (previewGeneralRx ? !previewGeneralRxCanDownloadPdf : !previewPhysioCanDownloadPdf)
+                    ? taskDetailsPanelStyles.previewFooterButtonDisabled
+                    : null,
+                ]}
               >
                 <Feather name="download" size={14} color={themeColors.textOnBrand} />
                 <Text style={taskDetailsPanelStyles.previewFooterPrimaryButtonText}>Download PDF</Text>

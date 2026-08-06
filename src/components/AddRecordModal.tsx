@@ -160,6 +160,52 @@ const DEFAULT_ROM_TEMPLATE = [
   { name: 'lateralRotation', displayName: 'Lateral Rotation', normal: 90, left: 0, right: 0 },
 ];
 
+type FrozenShoulderRomRow = {
+  name: string;
+  displayName: string;
+  normal: string;
+  left: string;
+  right: string;
+};
+
+function createDefaultFrozenShoulderRomRows(): FrozenShoulderRomRow[] {
+  return DEFAULT_ROM_TEMPLATE.map((item) => ({
+    name: item.name,
+    displayName: item.displayName,
+    normal: String(item.normal),
+    left: String(item.left),
+    right: String(item.right),
+  }));
+}
+
+function normalizeFrozenShoulderRomRows(value: unknown): FrozenShoulderRomRow[] {
+  if (!Array.isArray(value)) {
+    return createDefaultFrozenShoulderRomRows();
+  }
+
+  const parsedRows = value
+    .map((item) => asRecord(item))
+    .map((item) => ({
+      name: asText(item.name),
+      displayName: asText(item.displayName),
+      normal: asText(item.normal),
+      left: asText(item.left),
+      right: asText(item.right),
+    }));
+
+  return DEFAULT_ROM_TEMPLATE.map((defaultRow) => {
+    const matched = parsedRows.find((row) => row.name === defaultRow.name || row.displayName === defaultRow.displayName);
+
+    return {
+      name: defaultRow.name,
+      displayName: defaultRow.displayName,
+      normal: matched?.normal || String(defaultRow.normal),
+      left: matched?.left || String(defaultRow.left),
+      right: matched?.right || String(defaultRow.right),
+    };
+  });
+}
+
 function asText(value: unknown) {
   return typeof value === 'string' ? value : '';
 }
@@ -368,6 +414,7 @@ export function BaseRecordTemplateModal({
   const [frozenShoulderTreatmentPlan, setFrozenShoulderTreatmentPlan] = useState('');
   const [frozenShoulderExercises, setFrozenShoulderExercises] = useState('');
   const [frozenShoulderPrecautions, setFrozenShoulderPrecautions] = useState('');
+  const [frozenShoulderRomRows, setFrozenShoulderRomRows] = useState<FrozenShoulderRomRow[]>(createDefaultFrozenShoulderRomRows());
 
   const [dentalDiagnosis, setDentalDiagnosis] = useState('');
   const [dentalClinicalExaminationCsv, setDentalClinicalExaminationCsv] = useState('');
@@ -651,6 +698,7 @@ export function BaseRecordTemplateModal({
     setFrozenShoulderNotes(asText(frozenChiefComplaint.notes));
     setFrozenShoulderPainLevel(asText(prescriptionPayload.painLevel));
     setFrozenShoulderRangeOfMotion(asText(prescriptionPayload.rangeOfMotion) || asText(frozenExamination.notes));
+    setFrozenShoulderRomRows(normalizeFrozenShoulderRomRows(frozenExamination.rom));
     setFrozenShoulderTreatmentPlan(asText(prescriptionPayload.treatmentPlan));
     setFrozenShoulderExercises(asText(prescriptionPayload.exercises));
     setFrozenShoulderPrecautions(asText(prescriptionPayload.precautions));
@@ -812,6 +860,19 @@ export function BaseRecordTemplateModal({
     );
   };
 
+  const updateFrozenShoulderRomRow = (rowName: string, side: 'left' | 'right', value: string) => {
+    setFrozenShoulderRomRows((previousValue) =>
+      previousValue.map((item) =>
+        item.name === rowName
+          ? {
+              ...item,
+              [side]: value,
+            }
+          : item
+      )
+    );
+  };
+
   const saveRecord = async () => {
     if (!serviceId) {
       setErrorMessage('Service is not selected.');
@@ -938,7 +999,13 @@ export function BaseRecordTemplateModal({
             muscleTightness: generalMuscleTightness,
             musclesInvolved: fromCsv(generalMusclesInvolvedCsv),
             tendernessOn: fromCsv(generalTendernessCsv),
-            rom: DEFAULT_ROM_TEMPLATE,
+            rom: frozenShoulderRomRows.map((item) => ({
+              name: item.name,
+              displayName: item.displayName,
+              normal: item.normal.trim(),
+              left: item.left.trim(),
+              right: item.right.trim(),
+            })),
             musclePower: generalMusclePower.trim(),
             gripPinch: generalGripPinch.trim(),
             tone: generalTone.trim(),
@@ -975,6 +1042,7 @@ export function BaseRecordTemplateModal({
             payload.chiefComplaint.typeOfInjury ||
             payload.chiefComplaint.aggravatingFactor ||
             payload.chiefComplaint.relievingFactor ||
+            payload.examination.rom.some((item) => item.left || item.right) ||
             payload.examination.musclesInvolved.length ||
             payload.examination.tendernessOn.length ||
             payload.functionalAssessment.difficulties.length ||
@@ -1203,7 +1271,19 @@ export function BaseRecordTemplateModal({
     <Modal animationType="slide" visible={visible} onRequestClose={closeModal}>
       <View style={allStyles.modalScreen}>
         <View style={allStyles.modalHeader}>
-          <Text style={allStyles.modalTitle}>{selectedTemplate === 'generalRx' ? (isEditing ? 'Edit General Prescription' : 'Add General Prescription') : isEditing ? 'Edit Record' : 'Add Record'}</Text>
+          <Text style={allStyles.modalTitle}>
+            {selectedTemplate === 'generalRx'
+              ? isEditing
+                ? 'Edit General Prescription'
+                : 'Add General Prescription'
+              : selectedTemplate === 'physiotherapyRx'
+                ? isEditing
+                  ? 'Edit Physiotherapy Prescription'
+                  : 'Add Physiotherapy Prescription'
+                : isEditing
+                  ? 'Edit Record'
+                  : 'Add Record'}
+          </Text>
           <Pressable onPress={closeModal}>
             <Text style={allStyles.closeText}>Close</Text>
           </Pressable>
@@ -1262,6 +1342,22 @@ export function BaseRecordTemplateModal({
                 setGeneralRxFollowupDate={activeGeneralRx.setGeneralRxFollowupDate}
               />
             </View>
+          ) : selectedTemplate === 'physiotherapyRx' ? (
+            <View style={{ flex: 1 }}>
+              {errorMessage ? <Text style={allStyles.errorText}>{errorMessage}</Text> : null}
+              <PhysiotherapyRxForm
+                token={token}
+                facilityId={facilityId}
+                visible={visible}
+                saving={saving}
+                onSave={() => void saveRecord()}
+                prescriptionStatus={activePhysiotherapyRx.prescriptionStatus}
+                setPrescriptionStatus={activePhysiotherapyRx.setPrescriptionStatus}
+                physio={activePhysiotherapyRx.physio}
+                updatePhysioField={activePhysiotherapyRx.updatePhysioField}
+                toggleSelectable={activePhysiotherapyRx.toggleSelectable}
+              />
+            </View>
           ) : (
             <>
             <ScrollView
@@ -1272,18 +1368,6 @@ export function BaseRecordTemplateModal({
               ]}
             >
               {errorMessage ? <Text style={allStyles.errorText}>{errorMessage}</Text> : null}
-
-              {selectedTemplate === 'physiotherapyRx' ? (
-                <PhysiotherapyRxForm
-                  token={token}
-                  facilityId={facilityId}
-                  prescriptionStatus={activePhysiotherapyRx.prescriptionStatus}
-                  setPrescriptionStatus={activePhysiotherapyRx.setPrescriptionStatus}
-                  physio={activePhysiotherapyRx.physio}
-                  updatePhysioField={activePhysiotherapyRx.updatePhysioField}
-                  toggleSelectable={activePhysiotherapyRx.toggleSelectable}
-                />
-              ) : null}
 
               {selectedTemplate === 'frozenShoulderRx' ? (
             <>
