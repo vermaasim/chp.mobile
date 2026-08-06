@@ -23,6 +23,7 @@ import { themeColors } from '../theme/colors';
 import type { AssignedService, TaskDetailRecord, TaskDetailRecordType } from '../types/worklist';
 import { DrawingCanvasEditor } from './DrawingCanvasEditor';
 import { GeneralRxReadOnlyView } from './GeneralRxReadOnlyView';
+import { FrozenShoulderReadOnlyView } from './FrozenShoulderReadOnlyView';
 import { PhysiotherapyReadOnlyView } from './PhysiotherapyReadOnlyView';
 import type { PhysiotherapyPrescriptionData } from '../api/records';
 import { getScopedCreateOptions, type RecordCreateOptionKey } from './record-flow/recordFlow';
@@ -56,6 +57,12 @@ type GeneralRxPreviewMeta = {
 };
 
 type PhysioRxPreviewMeta = {
+  displayId?: string;
+  status?: string;
+  issuedAt?: string;
+};
+
+type FrozenShoulderRxPreviewMeta = {
   displayId?: string;
   status?: string;
   issuedAt?: string;
@@ -315,6 +322,11 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
   const [previewGeneralRxRecord, setPreviewGeneralRxRecord] = useState<TaskDetailRecord | null>(null);
   const [previewGeneralRxCanEdit, setPreviewGeneralRxCanEdit] = useState(false);
   const [previewGeneralRxCanDownloadPdf, setPreviewGeneralRxCanDownloadPdf] = useState(false);
+  const [previewFrozenShoulderRx, setPreviewFrozenShoulderRx] = useState<Record<string, unknown> | null>(null);
+  const [previewFrozenShoulderRxMeta, setPreviewFrozenShoulderRxMeta] = useState<FrozenShoulderRxPreviewMeta | null>(null);
+  const [previewFrozenShoulderRxRecord, setPreviewFrozenShoulderRxRecord] = useState<TaskDetailRecord | null>(null);
+  const [previewFrozenShoulderRxCanEdit, setPreviewFrozenShoulderRxCanEdit] = useState(false);
+  const [previewFrozenShoulderRxCanDownloadPdf, setPreviewFrozenShoulderRxCanDownloadPdf] = useState(false);
   const [showUnsupportedPrescriptionNotice, setShowUnsupportedPrescriptionNotice] = useState(false);
 
   useEffect(() => {
@@ -454,6 +466,8 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
             ? 'General Rx'
             : prescriptionTemplate === 'physiotherapyRx'
             ? 'Physiotherapy Rx'
+            : prescriptionTemplate === 'frozenShoulderRx'
+            ? 'Frozen Shoulder Rx'
             : (detail.displayId || record.displayId || 'Prescription')
         );
         const isUnsupportedPrescription = prescriptionTemplate === 'dentalRx' || prescriptionTemplate === 'labReport';
@@ -474,6 +488,11 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
           setPreviewGeneralRxRecord(null);
           setPreviewGeneralRxCanEdit(false);
           setPreviewGeneralRxCanDownloadPdf(false);
+          setPreviewFrozenShoulderRx(null);
+          setPreviewFrozenShoulderRxMeta(null);
+          setPreviewFrozenShoulderRxRecord(null);
+          setPreviewFrozenShoulderRxCanEdit(false);
+          setPreviewFrozenShoulderRxCanDownloadPdf(false);
         } else if (prescriptionTemplate === 'physiotherapyRx') {
           setPreviewText('');
           setShowUnsupportedPrescriptionNotice(false);
@@ -495,6 +514,11 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
           setPreviewGeneralRxRecord(null);
           setPreviewGeneralRxCanEdit(false);
           setPreviewGeneralRxCanDownloadPdf(false);
+          setPreviewFrozenShoulderRx(null);
+          setPreviewFrozenShoulderRxMeta(null);
+          setPreviewFrozenShoulderRxRecord(null);
+          setPreviewFrozenShoulderRxCanEdit(false);
+          setPreviewFrozenShoulderRxCanDownloadPdf(false);
         } else if (prescriptionTemplate === 'generalRx') {
           setPreviewText('');
           setShowUnsupportedPrescriptionNotice(false);
@@ -520,6 +544,36 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
           });
           setPreviewGeneralRxCanEdit(canEditPrescription);
           setPreviewGeneralRxCanDownloadPdf(canDownloadPrescription);
+          setPreviewFrozenShoulderRx(null);
+          setPreviewFrozenShoulderRxMeta(null);
+          setPreviewFrozenShoulderRxRecord(null);
+          setPreviewFrozenShoulderRxCanEdit(false);
+          setPreviewFrozenShoulderRxCanDownloadPdf(false);
+        } else if (prescriptionTemplate === 'frozenShoulderRx') {
+          setPreviewText('');
+          setShowUnsupportedPrescriptionNotice(false);
+          setPreviewPhysioRecord(null);
+          setPreviewPhysioCanEdit(false);
+          setPreviewPhysioCanDownloadPdf(false);
+          setPreviewPhysioMeta(null);
+          setPreviewGeneralRx(null);
+          setPreviewGeneralRxMeta(null);
+          setPreviewGeneralRxRecord(null);
+          setPreviewGeneralRxCanEdit(false);
+          setPreviewGeneralRxCanDownloadPdf(false);
+          setPreviewFrozenShoulderRx(asRecord(detail.detailedPrescription));
+          setPreviewFrozenShoulderRxMeta({
+            displayId: detail.displayId || record.displayId,
+            status: resolvedStatus,
+            issuedAt: record.createdOn || record.lastModifiedOn,
+          });
+          setPreviewFrozenShoulderRxRecord({
+            ...record,
+            id: detail.id,
+            displayId: detail.displayId || record.displayId,
+          });
+          setPreviewFrozenShoulderRxCanEdit(canEditPrescription);
+          setPreviewFrozenShoulderRxCanDownloadPdf(canDownloadPrescription);
         } else {
           setPreviewText(createPrescriptionPreviewText(detail.detailedPrescription));
           setShowUnsupportedPrescriptionNotice(false);
@@ -532,6 +586,11 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
           setPreviewGeneralRxRecord(null);
           setPreviewGeneralRxCanEdit(false);
           setPreviewGeneralRxCanDownloadPdf(false);
+          setPreviewFrozenShoulderRx(null);
+          setPreviewFrozenShoulderRxMeta(null);
+          setPreviewFrozenShoulderRxRecord(null);
+          setPreviewFrozenShoulderRxCanEdit(false);
+          setPreviewFrozenShoulderRxCanDownloadPdf(false);
         }
 
         setPreviewDrawingJson(null);
@@ -558,6 +617,11 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
         setPreviewGeneralRxRecord(null);
         setPreviewGeneralRxCanEdit(false);
         setPreviewGeneralRxCanDownloadPdf(false);
+        setPreviewFrozenShoulderRx(null);
+        setPreviewFrozenShoulderRxMeta(null);
+        setPreviewFrozenShoulderRxRecord(null);
+        setPreviewFrozenShoulderRxCanEdit(false);
+        setPreviewFrozenShoulderRxCanDownloadPdf(false);
       }
 
       if (recordType === 'drawing') {
@@ -573,6 +637,15 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
         setPreviewPhysioCanDownloadPdf(false);
         setPreviewPhysioMeta(null);
         setPreviewGeneralRx(null);
+        setPreviewGeneralRxMeta(null);
+        setPreviewGeneralRxRecord(null);
+        setPreviewGeneralRxCanEdit(false);
+        setPreviewGeneralRxCanDownloadPdf(false);
+        setPreviewFrozenShoulderRx(null);
+        setPreviewFrozenShoulderRxMeta(null);
+        setPreviewFrozenShoulderRxRecord(null);
+        setPreviewFrozenShoulderRxCanEdit(false);
+        setPreviewFrozenShoulderRxCanDownloadPdf(false);
       }
 
       if (recordType === 'medicalRecord') {
@@ -590,10 +663,11 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
         setPreviewGeneralRxRecord(null);
         setPreviewGeneralRxCanEdit(false);
         setPreviewGeneralRxCanDownloadPdf(false);
-        setPreviewGeneralRxMeta(null);
-        setPreviewGeneralRxRecord(null);
-        setPreviewGeneralRxCanEdit(false);
-        setPreviewGeneralRxCanDownloadPdf(false);
+        setPreviewFrozenShoulderRx(null);
+        setPreviewFrozenShoulderRxMeta(null);
+        setPreviewFrozenShoulderRxRecord(null);
+        setPreviewFrozenShoulderRxCanEdit(false);
+        setPreviewFrozenShoulderRxCanDownloadPdf(false);
       }
 
       setPreviewVisible(true);
@@ -814,6 +888,22 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
   const canStartTask = isNotStarted;
   const canCompleteTask = isInProgress;
   const canUndoTask = isInProgress || isCompleted;
+  const hasStructuredPrescriptionPreview = Boolean(previewGeneralRx || previewPhysio || previewFrozenShoulderRx);
+  const previewEditableRecord = previewGeneralRx
+    ? previewGeneralRxRecord
+    : previewPhysio
+    ? previewPhysioRecord
+    : previewFrozenShoulderRxRecord;
+  const previewCanEdit = previewGeneralRx
+    ? previewGeneralRxCanEdit
+    : previewPhysio
+    ? previewPhysioCanEdit
+    : previewFrozenShoulderRxCanEdit;
+  const previewCanDownloadPdf = previewGeneralRx
+    ? previewGeneralRxCanDownloadPdf
+    : previewPhysio
+    ? previewPhysioCanDownloadPdf
+    : previewFrozenShoulderRxCanDownloadPdf;
 
   return (
     <View style={taskDetailsPanelStyles.panelRoot}>
@@ -1176,7 +1266,7 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
               <Text style={taskDetailsPanelStyles.previewClose}>Close</Text>
             </Pressable>
           </View>
-          <ScrollView contentContainerStyle={[taskDetailsPanelStyles.previewBody, previewGeneralRx || previewPhysio ? taskDetailsPanelStyles.previewBodyWithStickyFooter : null]}>
+          <ScrollView contentContainerStyle={[taskDetailsPanelStyles.previewBody, hasStructuredPrescriptionPreview ? taskDetailsPanelStyles.previewBodyWithStickyFooter : null]}>
             {showUnsupportedPrescriptionNotice ? (
               <UnsupportedPrescriptionNotice />
             ) : previewDrawingJson ? (
@@ -1188,31 +1278,29 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
                 data={previewGeneralRx}
                 meta={previewGeneralRxMeta ?? undefined}
               />
+            ) : previewFrozenShoulderRx ? (
+              <FrozenShoulderReadOnlyView data={previewFrozenShoulderRx} meta={previewFrozenShoulderRxMeta ?? undefined} />
             ) : (
               <Text style={taskDetailsPanelStyles.previewText}>{previewText || 'No preview available.'}</Text>
             )}
           </ScrollView>
 
-          {previewGeneralRx || previewPhysio ? (
+          {hasStructuredPrescriptionPreview ? (
             <View style={taskDetailsPanelStyles.previewStickyFooter}>
               <Pressable
                 accessibilityRole="button"
-                disabled={previewGeneralRx ? !previewGeneralRxCanEdit : !previewPhysioCanEdit}
+                disabled={!previewCanEdit}
                 onPress={() => {
-                  const editableRecord = previewGeneralRx ? previewGeneralRxRecord : previewPhysioRecord;
-
-                  if (!editableRecord) {
+                  if (!previewEditableRecord) {
                     return;
                   }
 
                   setPreviewVisible(false);
-                  void handleEditRecord(editableRecord);
+                  void handleEditRecord(previewEditableRecord);
                 }}
                 style={[
                   taskDetailsPanelStyles.previewFooterSecondaryButton,
-                  (previewGeneralRx ? !previewGeneralRxCanEdit : !previewPhysioCanEdit)
-                    ? taskDetailsPanelStyles.previewFooterButtonDisabled
-                    : null,
+                  !previewCanEdit ? taskDetailsPanelStyles.previewFooterButtonDisabled : null,
                 ]}
               >
                 <Feather name="edit-2" size={14} color={themeColors.textPrimary} />
@@ -1221,21 +1309,17 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
 
               <Pressable
                 accessibilityRole="button"
-                disabled={previewGeneralRx ? !previewGeneralRxCanDownloadPdf : !previewPhysioCanDownloadPdf}
+                disabled={!previewCanDownloadPdf}
                 onPress={() => {
-                  const downloadableRecord = previewGeneralRx ? previewGeneralRxRecord : previewPhysioRecord;
-
-                  if (!downloadableRecord) {
+                  if (!previewEditableRecord) {
                     return;
                   }
 
-                  void handleDownloadRecord(downloadableRecord);
+                  void handleDownloadRecord(previewEditableRecord);
                 }}
                 style={[
                   taskDetailsPanelStyles.previewFooterPrimaryButton,
-                  (previewGeneralRx ? !previewGeneralRxCanDownloadPdf : !previewPhysioCanDownloadPdf)
-                    ? taskDetailsPanelStyles.previewFooterButtonDisabled
-                    : null,
+                  !previewCanDownloadPdf ? taskDetailsPanelStyles.previewFooterButtonDisabled : null,
                 ]}
               >
                 <Feather name="download" size={14} color={themeColors.textOnBrand} />

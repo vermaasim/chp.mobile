@@ -34,6 +34,8 @@ import { DrawingCanvasEditor } from './DrawingCanvasEditor';
 import { SpeechEnabledMultilineInput } from './SpeechEnabledMultilineInput';
 import { GeneralRxForm } from './record-modals/general-rx/GeneralRxForm';
 import { buildGeneralRxPayload, hasGeneralRxContent } from './record-modals/general-rx/generalRxSave';
+import { FrozenShoulderRxForm } from './record-modals/frozen-shoulder-rx/FrozenShoulderRxForm';
+import { buildFrozenShoulderRxPayload, hasFrozenShoulderRxContent } from './record-modals/frozen-shoulder-rx/frozenShoulderRxSave';
 import { PhysiotherapyRxForm } from './record-modals/physiotherapy-rx/PhysiotherapyRxForm';
 import { buildPhysiotherapyRxPayload, hasPhysiotherapyRxContent } from './record-modals/physiotherapy-rx/physiotherapyRxSave';
 import {
@@ -145,10 +147,6 @@ export type PhysiotherapyRxBindings = {
   toggleSelectable: (key: 'medicalHistoryConditions' | 'painTypes' | 'treatmentMethods', value: string) => void;
 };
 
-const YES_NO_VALUES = ['Yes', 'No'];
-const SIDE_VALUES = ['Right', 'Left', 'Bilateral'];
-const PAIN_NATURE_VALUES = ['Continuous', 'Intermittent'];
-const ONSET_VALUES = ['Gradual', 'Sudden'];
 const STATUS_VALUES: Array<'Draft' | 'Final'> = ['Draft', 'Final'];
 
 const DEFAULT_ROM_TEMPLATE = [
@@ -642,7 +640,7 @@ export function BaseRecordTemplateModal({
       setGeneralRxFollowupDate(asText(prescriptionPayload.followupDate));
       setGeneralPastHtn((asText(generalPastHistory.htn) as 'Yes' | 'No') || 'No');
       setGeneralPastDm2((asText(generalPastHistory.dm2) as 'Yes' | 'No') || 'No');
-      setGeneralPastHypothyroidism((asText(generalPastHistory.hypothyroidism) as 'Yes' | 'No') || 'No');
+      setGeneralPastHypothyroidism((asText(generalPastHistory.hypothyroidism || generalPastHistory.hypothyroid) as 'Yes' | 'No') || 'No');
       setGeneralRxHistory(asText(generalPastHistory.rxHistory));
       setGeneralExamSide(asText(generalExamination.examSide) || 'Right');
       setGeneralSwelling((asText(generalExamination.swelling) as 'Yes' | 'No') || 'No');
@@ -657,7 +655,7 @@ export function BaseRecordTemplateModal({
       setGeneralGripPinch(asText(generalExamination.gripPinch) || 'Strong');
       setGeneralTone(asText(generalExamination.tone) || 'Normal');
       setGeneralCoordination(asText(generalExamination.coordination) || 'Good');
-      setGeneralThumbDropTest(asText(generalSpecialTests.thumpDropTest) || 'Negative');
+      setGeneralThumbDropTest(asText(generalSpecialTests.thumbDropTest || generalSpecialTests.thumpDropTest) || 'Negative');
       setGeneralPainfulArcTest(asText(generalSpecialTests.painfulArcTest) || 'Negative');
       setGeneralAdl(asText(generalFunctionalAssessment.adl) || 'Independent');
       setGeneralDifficultiesCsv(toCsv(asStringArray(generalFunctionalAssessment.difficulties)));
@@ -959,99 +957,71 @@ export function BaseRecordTemplateModal({
       }
 
       if (selectedTemplate === 'frozenShoulderRx') {
-        const payload = {
-          complaint: frozenShoulderComplaint.trim(),
-          duration: frozenShoulderDuration.trim(),
-          painLevel: frozenShoulderPainLevel.trim(),
-          rangeOfMotion: frozenShoulderRangeOfMotion.trim(),
-          treatmentPlan: frozenShoulderTreatmentPlan.trim(),
-          exercises: frozenShoulderExercises.trim(),
-          precautions: frozenShoulderPrecautions.trim(),
+        const payload = buildFrozenShoulderRxPayload({
+          complaint: frozenShoulderComplaint,
+          duration: frozenShoulderDuration,
+          painLevel: frozenShoulderPainLevel,
+          rangeOfMotion: frozenShoulderRangeOfMotion,
+          treatmentPlan: frozenShoulderTreatmentPlan,
+          exercises: frozenShoulderExercises,
+          precautions: frozenShoulderPrecautions,
           chiefComplaint: {
             complaintSide: frozenShoulderComplaintSide,
-            durationValue: frozenShoulderDuration.trim(),
+            durationValue: frozenShoulderDuration,
             durationUnit: frozenShoulderDurationUnit,
             natureOfPain: frozenShoulderNatureOfPain,
             symptoms: frozenShoulderSymptoms,
             onset: frozenShoulderOnset,
             injury: frozenShoulderInjury,
-            typeOfInjury: frozenShoulderTypeOfInjury.trim(),
-            aggravatingFactor: frozenShoulderAggravatingFactor.trim(),
-            relievingFactor: frozenShoulderRelievingFactor.trim(),
-            nightPain: frozenShoulderNightPain.trim(),
+            typeOfInjury: frozenShoulderTypeOfInjury,
+            aggravatingFactor: frozenShoulderAggravatingFactor,
+            relievingFactor: frozenShoulderRelievingFactor,
+            nightPain: frozenShoulderNightPain,
             sleepDisturbance: frozenShoulderSleepDisturbance,
-            notes: frozenShoulderNotes.trim(),
+            notes: frozenShoulderNotes,
           },
           pastHistory: {
             htn: generalPastHtn,
             dm2: generalPastDm2,
             hypothyroidism: generalPastHypothyroidism,
-            rxHistory: generalRxHistory.trim(),
-            notes: frozenShoulderNotes.trim(),
+            rxHistory: generalRxHistory,
+            notes: frozenShoulderNotes,
           },
           examination: {
             examSide: generalExamSide,
             swelling: generalSwelling,
             muscleWasting: generalMuscleWasting,
             neuroDeficit: generalNeuroDeficit,
-            neuroDeficitType: generalNeuroDeficitType.trim(),
+            neuroDeficitType: generalNeuroDeficitType,
             capsularPattern: generalCapsularPattern,
             muscleTightness: generalMuscleTightness,
-            musclesInvolved: fromCsv(generalMusclesInvolvedCsv),
-            tendernessOn: fromCsv(generalTendernessCsv),
-            rom: frozenShoulderRomRows.map((item) => ({
-              name: item.name,
-              displayName: item.displayName,
-              normal: item.normal.trim(),
-              left: item.left.trim(),
-              right: item.right.trim(),
-            })),
-            musclePower: generalMusclePower.trim(),
-            gripPinch: generalGripPinch.trim(),
-            tone: generalTone.trim(),
-            coordination: generalCoordination.trim(),
-            notes: frozenShoulderRangeOfMotion.trim(),
+            musclesInvolvedCsv: generalMusclesInvolvedCsv,
+            tendernessOnCsv: generalTendernessCsv,
+            rom: frozenShoulderRomRows,
+            musclePower: generalMusclePower,
+            gripPinch: generalGripPinch,
+            tone: generalTone,
+            coordination: generalCoordination,
+            notes: frozenShoulderRangeOfMotion,
           },
           specialTests: {
-            thumpDropTest: generalThumbDropTest.trim(),
-            painfulArcTest: generalPainfulArcTest.trim(),
-            notes: frozenShoulderNotes.trim(),
+            thumbDropTest: generalThumbDropTest,
+            painfulArcTest: generalPainfulArcTest,
+            notes: frozenShoulderNotes,
           },
           functionalAssessment: {
-            adl: generalAdl.trim(),
-            difficulties: fromCsv(generalDifficultiesCsv),
-            notes: frozenShoulderNotes.trim(),
+            adl: generalAdl,
+            difficultiesCsv: generalDifficultiesCsv,
+            notes: frozenShoulderNotes,
           },
           managementPlan: {
-            modalities: fromCsv(generalModalitiesCsv),
-            exercisePlan: fromCsv(generalExercisePlanCsv),
-            prognosis: generalPrognosis.trim() || frozenShoulderTreatmentPlan.trim(),
+            modalitiesCsv: generalModalitiesCsv,
+            exercisePlanCsv: generalExercisePlanCsv,
+            prognosis: generalPrognosis,
           },
-        };
+        });
 
-        const hasFrozenContent = Boolean(
-          payload.complaint ||
-            payload.duration ||
-            payload.painLevel ||
-            payload.rangeOfMotion ||
-            payload.treatmentPlan ||
-            payload.exercises ||
-            payload.precautions ||
-            payload.chiefComplaint.notes ||
-            payload.chiefComplaint.durationValue ||
-            payload.chiefComplaint.typeOfInjury ||
-            payload.chiefComplaint.aggravatingFactor ||
-            payload.chiefComplaint.relievingFactor ||
-            payload.examination.rom.some((item) => item.left || item.right) ||
-            payload.examination.musclesInvolved.length ||
-            payload.examination.tendernessOn.length ||
-            payload.functionalAssessment.difficulties.length ||
-            payload.managementPlan.modalities.length ||
-            payload.managementPlan.exercisePlan.length ||
-            payload.managementPlan.prognosis
-        );
-
-        if (!hasFrozenContent) {
+        if (!hasFrozenShoulderRxContent(payload)) {
           setErrorMessage('Please provide at least one Frozen Shoulder Rx field.');
           return;
         }
@@ -1280,6 +1250,10 @@ export function BaseRecordTemplateModal({
                 ? isEditing
                   ? 'Edit Physiotherapy Prescription'
                   : 'Add Physiotherapy Prescription'
+                : selectedTemplate === 'frozenShoulderRx'
+                  ? isEditing
+                    ? 'Edit Frozen Shoulder Prescription'
+                    : 'Add Frozen Shoulder Prescription'
                 : isEditing
                   ? 'Edit Record'
                   : 'Add Record'}
@@ -1358,6 +1332,107 @@ export function BaseRecordTemplateModal({
                 toggleSelectable={activePhysiotherapyRx.toggleSelectable}
               />
             </View>
+          ) : selectedTemplate === 'frozenShoulderRx' ? (
+            <View style={{ flex: 1 }}>
+              {errorMessage ? <Text style={allStyles.errorText}>{errorMessage}</Text> : null}
+              <FrozenShoulderRxForm
+                token={token}
+                facilityId={facilityId}
+                visible={visible}
+                saving={saving}
+                onSave={() => void saveRecord()}
+                prescriptionStatus={prescriptionStatus}
+                setPrescriptionStatus={setPrescriptionStatus}
+                frozenShoulderComplaint={frozenShoulderComplaint}
+                setFrozenShoulderComplaint={setFrozenShoulderComplaint}
+                frozenShoulderComplaintSide={frozenShoulderComplaintSide}
+                setFrozenShoulderComplaintSide={setFrozenShoulderComplaintSide}
+                frozenShoulderDuration={frozenShoulderDuration}
+                setFrozenShoulderDuration={setFrozenShoulderDuration}
+                frozenShoulderDurationUnit={frozenShoulderDurationUnit}
+                setFrozenShoulderDurationUnit={setFrozenShoulderDurationUnit}
+                frozenShoulderNatureOfPain={frozenShoulderNatureOfPain}
+                setFrozenShoulderNatureOfPain={setFrozenShoulderNatureOfPain}
+                frozenShoulderSymptoms={frozenShoulderSymptoms}
+                setFrozenShoulderSymptoms={setFrozenShoulderSymptoms}
+                frozenShoulderOnset={frozenShoulderOnset}
+                setFrozenShoulderOnset={setFrozenShoulderOnset}
+                frozenShoulderInjury={frozenShoulderInjury}
+                setFrozenShoulderInjury={setFrozenShoulderInjury}
+                frozenShoulderTypeOfInjury={frozenShoulderTypeOfInjury}
+                setFrozenShoulderTypeOfInjury={setFrozenShoulderTypeOfInjury}
+                frozenShoulderAggravatingFactor={frozenShoulderAggravatingFactor}
+                setFrozenShoulderAggravatingFactor={setFrozenShoulderAggravatingFactor}
+                frozenShoulderRelievingFactor={frozenShoulderRelievingFactor}
+                setFrozenShoulderRelievingFactor={setFrozenShoulderRelievingFactor}
+                frozenShoulderNightPain={frozenShoulderNightPain}
+                setFrozenShoulderNightPain={setFrozenShoulderNightPain}
+                frozenShoulderSleepDisturbance={frozenShoulderSleepDisturbance}
+                setFrozenShoulderSleepDisturbance={setFrozenShoulderSleepDisturbance}
+                frozenShoulderNotes={frozenShoulderNotes}
+                setFrozenShoulderNotes={setFrozenShoulderNotes}
+                generalPastHtn={generalPastHtn}
+                setGeneralPastHtn={setGeneralPastHtn}
+                generalPastDm2={generalPastDm2}
+                setGeneralPastDm2={setGeneralPastDm2}
+                generalPastHypothyroidism={generalPastHypothyroidism}
+                setGeneralPastHypothyroidism={setGeneralPastHypothyroidism}
+                generalRxHistory={generalRxHistory}
+                setGeneralRxHistory={setGeneralRxHistory}
+                generalExamSide={generalExamSide}
+                setGeneralExamSide={setGeneralExamSide}
+                generalSwelling={generalSwelling}
+                setGeneralSwelling={setGeneralSwelling}
+                generalMuscleWasting={generalMuscleWasting}
+                setGeneralMuscleWasting={setGeneralMuscleWasting}
+                generalNeuroDeficit={generalNeuroDeficit}
+                setGeneralNeuroDeficit={setGeneralNeuroDeficit}
+                generalNeuroDeficitType={generalNeuroDeficitType}
+                setGeneralNeuroDeficitType={setGeneralNeuroDeficitType}
+                generalCapsularPattern={generalCapsularPattern}
+                setGeneralCapsularPattern={setGeneralCapsularPattern}
+                generalMuscleTightness={generalMuscleTightness}
+                setGeneralMuscleTightness={setGeneralMuscleTightness}
+                generalMusclesInvolvedCsv={generalMusclesInvolvedCsv}
+                setGeneralMusclesInvolvedCsv={setGeneralMusclesInvolvedCsv}
+                generalTendernessCsv={generalTendernessCsv}
+                setGeneralTendernessCsv={setGeneralTendernessCsv}
+                frozenShoulderRomRows={frozenShoulderRomRows}
+                updateFrozenShoulderRomRow={updateFrozenShoulderRomRow}
+                frozenShoulderPainLevel={frozenShoulderPainLevel}
+                setFrozenShoulderPainLevel={setFrozenShoulderPainLevel}
+                frozenShoulderRangeOfMotion={frozenShoulderRangeOfMotion}
+                setFrozenShoulderRangeOfMotion={setFrozenShoulderRangeOfMotion}
+                generalMusclePower={generalMusclePower}
+                setGeneralMusclePower={setGeneralMusclePower}
+                generalGripPinch={generalGripPinch}
+                setGeneralGripPinch={setGeneralGripPinch}
+                generalTone={generalTone}
+                setGeneralTone={setGeneralTone}
+                generalCoordination={generalCoordination}
+                setGeneralCoordination={setGeneralCoordination}
+                generalThumbDropTest={generalThumbDropTest}
+                setGeneralThumbDropTest={setGeneralThumbDropTest}
+                generalPainfulArcTest={generalPainfulArcTest}
+                setGeneralPainfulArcTest={setGeneralPainfulArcTest}
+                generalAdl={generalAdl}
+                setGeneralAdl={setGeneralAdl}
+                generalDifficultiesCsv={generalDifficultiesCsv}
+                setGeneralDifficultiesCsv={setGeneralDifficultiesCsv}
+                frozenShoulderTreatmentPlan={frozenShoulderTreatmentPlan}
+                setFrozenShoulderTreatmentPlan={setFrozenShoulderTreatmentPlan}
+                frozenShoulderExercises={frozenShoulderExercises}
+                setFrozenShoulderExercises={setFrozenShoulderExercises}
+                frozenShoulderPrecautions={frozenShoulderPrecautions}
+                setFrozenShoulderPrecautions={setFrozenShoulderPrecautions}
+                generalModalitiesCsv={generalModalitiesCsv}
+                setGeneralModalitiesCsv={setGeneralModalitiesCsv}
+                generalExercisePlanCsv={generalExercisePlanCsv}
+                setGeneralExercisePlanCsv={setGeneralExercisePlanCsv}
+                generalPrognosis={generalPrognosis}
+                setGeneralPrognosis={setGeneralPrognosis}
+              />
+            </View>
           ) : (
             <>
             <ScrollView
@@ -1368,155 +1443,6 @@ export function BaseRecordTemplateModal({
               ]}
             >
               {errorMessage ? <Text style={allStyles.errorText}>{errorMessage}</Text> : null}
-
-              {selectedTemplate === 'frozenShoulderRx' ? (
-            <>
-              <Text style={allStyles.label}>Status</Text>
-              <View style={allStyles.typeRow}>
-                {STATUS_VALUES.map((status) => (
-                  <Pressable
-                    key={`frozen-${status}`}
-                    style={[allStyles.typeChip, prescriptionStatus === status ? allStyles.typeChipActive : null]}
-                    onPress={() => setPrescriptionStatus(status)}
-                  >
-                    <Text style={[allStyles.typeChipText, prescriptionStatus === status ? allStyles.typeChipTextActive : null]}>{status}</Text>
-                  </Pressable>
-                ))}
-              </View>
-
-              <Text style={allStyles.label}>Complaint</Text>
-              <SpeechEnabledMultilineInput
-                value={frozenShoulderComplaint}
-                onChangeText={setFrozenShoulderComplaint}
-                numberOfLines={3}
-                {...withAiContext('complaint', 'Frozen shoulder prescription complaint.', 'Brief professional clinical tone.')}
-              />
-
-              <Text style={allStyles.label}>Complaint Side</Text>
-              <View style={allStyles.typeRow}>
-                {SIDE_VALUES.map((side) => (
-                  <Pressable
-                    key={`frozen-side-${side}`}
-                    style={[allStyles.typeChip, frozenShoulderComplaintSide === side ? allStyles.typeChipActive : null]}
-                    onPress={() => setFrozenShoulderComplaintSide(side)}
-                  >
-                    <Text style={[allStyles.typeChipText, frozenShoulderComplaintSide === side ? allStyles.typeChipTextActive : null]}>{side}</Text>
-                  </Pressable>
-                ))}
-              </View>
-
-              <Text style={allStyles.label}>Duration</Text>
-              <TextInput value={frozenShoulderDuration} onChangeText={setFrozenShoulderDuration} style={allStyles.input} placeholder="e.g. 3 months" />
-
-              <Text style={allStyles.label}>Duration Unit</Text>
-              <TextInput value={frozenShoulderDurationUnit} onChangeText={setFrozenShoulderDurationUnit} style={allStyles.input} placeholder="Days/Weeks/Months" />
-
-              <Text style={allStyles.label}>Nature Of Pain</Text>
-              <View style={allStyles.typeRow}>
-                {PAIN_NATURE_VALUES.map((item) => (
-                  <Pressable
-                    key={`nature-${item}`}
-                    style={[allStyles.typeChip, frozenShoulderNatureOfPain === item ? allStyles.typeChipActive : null]}
-                    onPress={() => setFrozenShoulderNatureOfPain(item)}
-                  >
-                    <Text style={[allStyles.typeChipText, frozenShoulderNatureOfPain === item ? allStyles.typeChipTextActive : null]}>{item}</Text>
-                  </Pressable>
-                ))}
-              </View>
-
-              <Text style={allStyles.label}>Onset</Text>
-              <View style={allStyles.typeRow}>
-                {ONSET_VALUES.map((item) => (
-                  <Pressable key={`onset-${item}`} style={[allStyles.typeChip, frozenShoulderOnset === item ? allStyles.typeChipActive : null]} onPress={() => setFrozenShoulderOnset(item)}>
-                    <Text style={[allStyles.typeChipText, frozenShoulderOnset === item ? allStyles.typeChipTextActive : null]}>{item}</Text>
-                  </Pressable>
-                ))}
-              </View>
-
-              <Text style={allStyles.label}>Injury</Text>
-              <View style={allStyles.typeRow}>
-                {YES_NO_VALUES.map((item) => (
-                  <Pressable key={`injury-${item}`} style={[allStyles.typeChip, frozenShoulderInjury === item ? allStyles.typeChipActive : null]} onPress={() => setFrozenShoulderInjury(item as 'Yes' | 'No')}>
-                    <Text style={[allStyles.typeChipText, frozenShoulderInjury === item ? allStyles.typeChipTextActive : null]}>{item}</Text>
-                  </Pressable>
-                ))}
-              </View>
-
-              <Text style={allStyles.label}>Type Of Injury</Text>
-              <TextInput value={frozenShoulderTypeOfInjury} onChangeText={setFrozenShoulderTypeOfInjury} style={allStyles.input} placeholder="e.g. Fall" />
-
-              <Text style={allStyles.label}>Aggravating Factor</Text>
-              <SpeechEnabledMultilineInput
-                value={frozenShoulderAggravatingFactor}
-                onChangeText={setFrozenShoulderAggravatingFactor}
-                numberOfLines={2}
-                {...withAiContext('assessment', 'Frozen shoulder aggravating factors.', 'Use concise physiotherapy assessment language.')}
-              />
-
-              <Text style={allStyles.label}>Relieving Factor</Text>
-              <SpeechEnabledMultilineInput
-                value={frozenShoulderRelievingFactor}
-                onChangeText={setFrozenShoulderRelievingFactor}
-                numberOfLines={2}
-                {...withAiContext('assessment', 'Frozen shoulder relieving factors.', 'Use concise physiotherapy assessment language.')}
-              />
-
-              <Text style={allStyles.label}>Night Pain</Text>
-              <TextInput value={frozenShoulderNightPain} onChangeText={setFrozenShoulderNightPain} style={allStyles.input} placeholder="Increased/Decreased" />
-
-              <Text style={allStyles.label}>Sleep Disturbance</Text>
-              <View style={allStyles.typeRow}>
-                {YES_NO_VALUES.map((item) => (
-                  <Pressable key={`sleep-${item}`} style={[allStyles.typeChip, frozenShoulderSleepDisturbance === item ? allStyles.typeChipActive : null]} onPress={() => setFrozenShoulderSleepDisturbance(item as 'Yes' | 'No')}>
-                    <Text style={[allStyles.typeChipText, frozenShoulderSleepDisturbance === item ? allStyles.typeChipTextActive : null]}>{item}</Text>
-                  </Pressable>
-                ))}
-              </View>
-
-              <Text style={allStyles.label}>Notes</Text>
-              <SpeechEnabledMultilineInput
-                value={frozenShoulderNotes}
-                onChangeText={setFrozenShoulderNotes}
-                numberOfLines={2}
-                {...withAiContext('assessment', 'Frozen shoulder clinician notes.', 'Use concise objective assessment language.')}
-              />
-
-              <Text style={allStyles.label}>Pain Level</Text>
-              <TextInput value={frozenShoulderPainLevel} onChangeText={setFrozenShoulderPainLevel} style={allStyles.input} keyboardType="numeric" placeholder="0-10" />
-
-              <Text style={allStyles.label}>Range Of Motion</Text>
-              <SpeechEnabledMultilineInput
-                value={frozenShoulderRangeOfMotion}
-                onChangeText={setFrozenShoulderRangeOfMotion}
-                numberOfLines={2}
-                {...withAiContext('assessment', 'Frozen shoulder range of motion findings.', 'Use structured ROM clinical phrasing.')}
-              />
-
-              <Text style={allStyles.label}>Treatment Plan</Text>
-              <SpeechEnabledMultilineInput
-                value={frozenShoulderTreatmentPlan}
-                onChangeText={setFrozenShoulderTreatmentPlan}
-                numberOfLines={3}
-                {...withAiContext('treatment', 'Frozen shoulder treatment plan.', 'Use actionable treatment-oriented language.')}
-              />
-
-              <Text style={allStyles.label}>Exercises</Text>
-              <SpeechEnabledMultilineInput
-                value={frozenShoulderExercises}
-                onChangeText={setFrozenShoulderExercises}
-                numberOfLines={3}
-                {...withAiContext('treatment', 'Frozen shoulder exercise recommendations.', 'Use clear home-exercise instructions.')}
-              />
-
-              <Text style={allStyles.label}>Precautions</Text>
-              <SpeechEnabledMultilineInput
-                value={frozenShoulderPrecautions}
-                onChangeText={setFrozenShoulderPrecautions}
-                numberOfLines={3}
-                {...withAiContext('dos_donts', 'Frozen shoulder precautions and restrictions.', 'Use clear do and do-not guidance.')}
-              />
-            </>
-              ) : null}
 
               {selectedTemplate === 'dentalRx' ? (
             <>
