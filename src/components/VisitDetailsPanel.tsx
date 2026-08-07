@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Card } from 'react-native-paper';
 import { loadVisitBillingSummary, loadVisitDetails, loadVisitLinkedServices } from '../api/visits';
+import { CenteredLoader } from './CenteredLoader';
 import { taskDetailsPanelStyles } from '../styles/commonStyles';
 import { themeColors } from '../theme/colors';
 import type { VisitBillingSummary, VisitDetail, VisitLinkedService } from '../types/visits';
@@ -120,14 +121,7 @@ export function VisitDetailsPanel({ token, facilityId, visitId }: VisitDetailsPa
   );
 
   if (loading) {
-    return (
-      <View style={taskDetailsPanelStyles.loadingWrap}>
-        <View style={taskDetailsPanelStyles.loadingRow}>
-          <ActivityIndicator size="small" color={themeColors.primary} />
-          <Text style={taskDetailsPanelStyles.loadingText}>Loading visit details...</Text>
-        </View>
-      </View>
-    );
+    return <CenteredLoader message="Loading visit details..." containerStyle={taskDetailsPanelStyles.loadingWrap} />;
   }
 
   if (errorMessage) {

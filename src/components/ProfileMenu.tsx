@@ -6,6 +6,7 @@ interface ProfileMenuProps {
   visible: boolean;
   displayName: string;
   email: string;
+  onViewAttendance: () => void;
   onSignOut: () => void;
   onClose: () => void;
 }
@@ -14,6 +15,7 @@ export function ProfileMenu({
   visible,
   displayName,
   email,
+  onViewAttendance,
   onSignOut,
   onClose,
 }: ProfileMenuProps) {
@@ -30,9 +32,20 @@ export function ProfileMenu({
           <Divider style={styles.divider} />
 
           <Button
+            mode="outlined"
+            onPress={onViewAttendance}
+            style={styles.attendanceButton}
+            contentStyle={styles.attendanceButtonContent}
+            labelStyle={styles.attendanceButtonLabel}
+          >
+            View attendance
+          </Button>
+
+          <Button
             mode="contained"
             onPress={onSignOut}
             buttonColor={themeColors.secondary}
+            style={styles.signOutButton}
             contentStyle={styles.signOutButtonContent}
             labelStyle={styles.signOutButtonLabel}
           >
@@ -90,6 +103,21 @@ const styles = StyleSheet.create({
   divider: {
     marginBottom: 12,
     backgroundColor: themeColors.border,
+  },
+  attendanceButton: {
+    marginBottom: 10,
+    borderColor: themeColors.primary,
+  },
+  attendanceButtonContent: {
+    minHeight: 42,
+  },
+  attendanceButtonLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: themeColors.primary,
+  },
+  signOutButton: {
+    marginTop: 2,
   },
   signOutButtonContent: {
     minHeight: 42,

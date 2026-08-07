@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,6 +8,7 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { DateRangeFilterCard } from './DateRangeFilterCard';
+import { CenteredLoader } from './CenteredLoader';
 import { loadMyAssignedServices } from '../api/worklist';
 import {
   loadWorklistDateFilterPreference,
@@ -280,14 +280,7 @@ export function MyTasksPanel({ token, facilityId, onOpenTaskDetails }: MyTasksPa
 
       {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
 
-      {loading ? (
-        <View style={styles.loadingWrap}>
-          <View style={styles.loadingRow}>
-            <ActivityIndicator size="small" color={themeColors.primary} />
-            <Text style={styles.loadingText}>Loading tasks...</Text>
-          </View>
-        </View>
-      ) : null}
+      {loading ? <CenteredLoader message="Loading tasks..." containerStyle={styles.loadingWrap} /> : null}
 
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
         {visibleTasks.map((task) => {

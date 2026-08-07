@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar, IconButton } from 'react-native-paper';
 import { createVisit, loadClinicalServices, loadFacilityPhysicians, searchPatients } from '../api/visits';
+import { BrandLogo } from './BrandLogo';
+import { CenteredLoader } from './CenteredLoader';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { themeColors } from '../theme/colors';
 import type { ClinicalServiceOption, PatientOption, PhysicianOption, VisitType } from '../types/visits';
@@ -14,7 +16,6 @@ interface NewVisitPanelProps {
   facilityId: string;
   facilityName: string;
   displayName: string;
-  onMenuPress: () => void;
   onProfilePress: () => void;
   onViewVisits?: () => void;
   onSaved: () => void;
@@ -84,7 +85,6 @@ export function NewVisitPanel({
   facilityId,
   facilityName,
   displayName,
-  onMenuPress,
   onProfilePress,
   onViewVisits,
   onSaved,
@@ -744,9 +744,9 @@ export function NewVisitPanel({
       <View style={[styles.headerShell, { paddingTop: Math.max(6, insets.top + 4), paddingHorizontal: layout.horizontalPadding }]}>
         <View style={[styles.headerInner, layout.formMaxWidth ? { maxWidth: layout.formMaxWidth } : null]}>
           <View style={styles.topBarRow}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Open menu" onPress={onMenuPress} style={styles.topIconButton}>
-              <IconButton icon="menu" size={18} iconColor={themeColors.textPrimary} style={styles.topIconButtonInner} />
-            </Pressable>
+            <View style={styles.topLogoWrap}>
+              <BrandLogo width={108} height={26} />
+            </View>
             <View style={styles.brandWrap}>
               <Text numberOfLines={1} style={styles.facilityName}>{facilityName}</Text>
               <Text style={styles.brandSubtitle}>Click Health Pro</Text>
@@ -776,10 +776,7 @@ export function NewVisitPanel({
           <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingHorizontal: layout.horizontalPadding, paddingBottom: Math.max(layout.footerReserve, insets.bottom + 96) }]}>
             <View style={[styles.formContainer, layout.formMaxWidth ? { maxWidth: layout.formMaxWidth } : null]}>
         {loadingFormData ? (
-          <View style={styles.loadingCard}>
-            <ActivityIndicator size="small" color={themeColors.primary} />
-            <Text style={styles.loadingText}>Loading visit form options...</Text>
-          </View>
+          <CenteredLoader message="Loading visit form options..." containerStyle={styles.loadingCard} />
         ) : null}
 
         {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
@@ -842,18 +839,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12,
   },
-  topIconButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: themeColors.border,
-    backgroundColor: themeColors.surface,
-    alignItems: 'center',
+  topLogoWrap: {
+    width: 108,
+    minHeight: 38,
     justifyContent: 'center',
-  },
-  topIconButtonInner: {
-    margin: 0,
   },
   brandWrap: {
     flex: 1,

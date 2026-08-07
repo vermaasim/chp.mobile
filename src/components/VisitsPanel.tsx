@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DateRangeFilterCard } from './DateRangeFilterCard';
+import { CenteredLoader } from './CenteredLoader';
 import { loadFacilityVisits } from '../api/visits';
 import { loadVisitsDateFilterPreference, saveVisitsDateFilterPreference } from '../storage/visitsFilter';
 import { allStyles } from '../styles/commonStyles';
@@ -251,14 +252,7 @@ export function VisitsPanel({ token, facilityId, onOpenVisitDetails, onOpenCreat
 
       {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
 
-      {loading ? (
-        <View style={styles.loadingWrap}>
-          <View style={styles.loadingRow}>
-            <ActivityIndicator size="small" color={themeColors.primary} />
-            <Text style={styles.loadingText}>Loading visits...</Text>
-          </View>
-        </View>
-      ) : null}
+      {loading ? <CenteredLoader message="Loading visits..." containerStyle={styles.loadingWrap} /> : null}
 
       <ScrollView style={styles.list} contentContainerStyle={[styles.listContent, styles.listContentWithFab]}>
         {visits.map((visit) => {

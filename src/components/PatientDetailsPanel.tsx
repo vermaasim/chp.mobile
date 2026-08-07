@@ -5,6 +5,7 @@ import { Feather } from '@expo/vector-icons';
 import { loadPatientDetails } from '../api/patients';
 import { loadServiceLinkedRecords } from '../api/records';
 import { loadVisitLinkedServices } from '../api/visits';
+import { CenteredLoader } from './CenteredLoader';
 import { allStyles, taskDetailsPanelStyles } from '../styles/commonStyles';
 import { themeColors } from '../theme/colors';
 import type { PatientDetail, PatientVisitSummary } from '../types/patients';
@@ -217,14 +218,7 @@ export function PatientDetailsPanel({ token, facilityId, patientId }: PatientDet
   };
 
   if (loading) {
-    return (
-      <View style={taskDetailsPanelStyles.loadingWrap}>
-        <View style={taskDetailsPanelStyles.loadingRow}>
-          <ActivityIndicator size="small" color={themeColors.primary} />
-          <Text style={taskDetailsPanelStyles.loadingText}>Loading patient details...</Text>
-        </View>
-      </View>
-    );
+    return <CenteredLoader message="Loading patient details..." containerStyle={taskDetailsPanelStyles.loadingWrap} />;
   }
 
   if (errorMessage) {

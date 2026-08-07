@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Avatar, Divider, IconButton, Text } from 'react-native-paper';
+import { Avatar, IconButton, Text } from 'react-native-paper';
 import { loadTodaySummaryItems, type SummaryMetricKey, type SummaryRole } from '../api/summary';
-import { AppBar } from '../components/AppBar';
 import { AttendancePanel } from '../components/AttendancePanel';
+import { BottomBarPreferencesModal, type BottomBarPreferenceOption } from '../components/BottomBarPreferencesModal';
+import { BrandLogo } from '../components/BrandLogo';
 import { FacilitySwitchModal } from '../components/FacilitySwitchModal';
 import { InfoPlaceholder } from '../components/InfoPlaceholder';
 import { MyTasksPanel } from '../components/MyTasksPanel';
@@ -13,13 +14,13 @@ import { NewVisitPanel } from '../components/NewVisitPanel';
 import { PatientDetailsPanel } from '../components/PatientDetailsPanel';
 import { PatientsPanel } from '../components/PatientsPanel';
 import { ProfileMenu } from '../components/ProfileMenu';
-import { SideMenu, type SideMenuItem } from '../components/SideMenu';
 import { TaskDetailsPanel } from '../components/TaskDetailsPanel';
 import { VisitDetailsPanel } from '../components/VisitDetailsPanel';
 import { VisitsPanel } from '../components/VisitsPanel';
 import { HomeDashboard, type HomeDashboardModule, type HomeDashboardQuickAction, type HomeDashboardSummaryItem } from '../components/home/HomeDashboard';
 import { SummaryDetailModal } from '../components/home/SummaryDetailModal';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
+import { loadBottomBarModulePreference, saveBottomBarModulePreference } from '../storage/bottomBarPreferences';
 import { themeColors } from '../theme/colors';
 import type { AuthSession } from '../types/auth';
 
@@ -33,8 +34,8 @@ function buildDisplayName(user: AuthSession) {
   return [user.firstName, user.lastName].filter(Boolean).join(' ');
 }
 
-type ModulePageKey = 'My Tasks' | 'My Attendance' | 'Patients' | 'Enquiries' | 'Visits' | 'Billing';
-type PageKey = 'Home' | ModulePageKey | 'Task Details' | 'Visit Details' | 'New Visit' | 'Patient Details' | 'New Patient';
+type ModulePageKey = 'My Tasks' | 'Patients' | 'Enquiries' | 'Visits' | 'Billing';
+type PageKey = 'Home' | ModulePageKey | 'My Attendance' | 'Task Details' | 'Visit Details' | 'New Visit' | 'Patient Details' | 'New Patient';
 
 type ModuleConfig = {
   key: ModulePageKey;
@@ -76,19 +77,15 @@ const MODULE_CONFIGS: Record<ModulePageKey, ModuleConfig> = {
     subtitle: 'Review billing and collections overview',
     icon: 'currency-inr',
   },
-  'My Attendance': {
-    key: 'My Attendance',
-    title: 'Attendance',
-    subtitle: 'Track daily check-in and check-out activity',
-    icon: 'calendar-month-outline',
-  },
 };
 
 const ROLE_MODULES: Record<NormalizedRole, ModulePageKey[]> = {
-  facilityadmin: ['My Tasks', 'Visits', 'Patients', 'Enquiries', 'Billing', 'My Attendance'],
-  physician: ['My Tasks', 'My Attendance', 'Patients'],
-  frontdesk: ['My Attendance', 'Enquiries', 'Patients', 'Visits'],
+  facilityadmin: ['My Tasks', 'Visits', 'Patients', 'Enquiries', 'Billing'],
+  physician: ['My Tasks', 'Visits', 'Patients'],
+  frontdesk: ['Visits', 'Patients', 'Enquiries'],
 };
+
+const BOTTOM_BAR_MAX_MODULES = 3;
 
 function normalizeRoleName(value: string): NormalizedRole | null {
   const normalized = value?.trim().toLowerCase();
@@ -123,10 +120,44 @@ function getVisibleModules(user: AuthSession): ModulePageKey[] {
   });
 
   if (allowedSet.size === 0) {
-    return ['My Tasks', 'My Attendance'];
+    return ['My Tasks', 'Visits', 'Patients'];
   }
 
   return orderedModules.filter((moduleKey) => allowedSet.has(moduleKey));
+}
+
+function getBottomBarPreferenceScope(user: AuthSession) {
+  const roles = getVisibleRoles(user).sort().join('-') || 'default';
+  return `${user.userId}.${roles}`;
+}
+
+function sanitizeBottomBarModules(selectedKeys: string[], allowedModules: ModulePageKey[]) {
+  const selectedSet = new Set(selectedKeys.filter((key): key is ModulePageKey => allowedModules.includes(key as ModulePageKey)));
+  return allowedModules.filter((moduleKey) => selectedSet.has(moduleKey)).slice(0, BOTTOM_BAR_MAX_MODULES);
+}
+
+function getDefaultBottomBarModules(allowedModules: ModulePageKey[]) {
+  return allowedModules.slice(0, BOTTOM_BAR_MAX_MODULES);
+}
+
+function getActiveBottomBarKey(activePage: PageKey): 'Home' | ModulePageKey {
+  if (activePage === 'Task Details') {
+    return 'My Tasks';
+  }
+
+  if (activePage === 'Visit Details' || activePage === 'New Visit') {
+    return 'Visits';
+  }
+
+  if (activePage === 'Patient Details' || activePage === 'New Patient') {
+    return 'Patients';
+  }
+
+  if (activePage === 'My Attendance') {
+    return 'Home';
+  }
+
+  return activePage === 'Home' ? 'Home' : activePage;
 }
 
 function getBreadcrumbLabel(page: PageKey) {
@@ -145,8 +176,8 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [selectedVisitId, setSelectedVisitId] = useState<string | null>(null);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
-  const [isMenuVisible, setIsMenuVisible] = useState(false);
   const [isProfileMenuVisible, setIsProfileMenuVisible] = useState(false);
+  const [isPreferencesVisible, setIsPreferencesVisible] = useState(false);
   const [isFacilityModalVisible, setIsFacilityModalVisible] = useState(false);
   const [isSummaryModalVisible, setIsSummaryModalVisible] = useState(false);
   const [selectedSummaryMetric, setSelectedSummaryMetric] = useState<SummaryMetricKey | null>(null);
@@ -160,7 +191,9 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
   const activePage = pageStack[pageStack.length - 1];
   const activeFacilityName = user.selectedFacility?.name ?? user.companyName;
   const visibleModules = useMemo(() => getVisibleModules(user), [user]);
-  const visibleModuleSet = useMemo(() => new Set(visibleModules), [visibleModules]);
+  const defaultBottomBarModules = useMemo(() => getDefaultBottomBarModules(visibleModules), [visibleModules]);
+  const preferenceScope = useMemo(() => getBottomBarPreferenceScope(user), [user]);
+  const [bottomBarModules, setBottomBarModules] = useState<ModulePageKey[]>(defaultBottomBarModules);
 
   const primaryRole = useMemo<SummaryRole | null>(() => {
     const roles = getVisibleRoles(user);
@@ -215,17 +248,28 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
     };
   }, [primaryRole, user.selectedFacility?.id, user.token]);
 
-  const menuItems = useMemo<SideMenuItem[]>(() => {
-    const coreItems: SideMenuItem[] = [
-      { key: 'Home', label: 'Home', icon: 'view-dashboard-outline' },
-      ...visibleModules.map((moduleKey) => ({
-        key: moduleKey,
-        label: MODULE_CONFIGS[moduleKey].title,
-        icon: MODULE_CONFIGS[moduleKey].icon,
-      })),
-    ];
-    return coreItems;
-  }, [visibleModules]);
+  useEffect(() => {
+    let mounted = true;
+
+    void (async () => {
+      const storedPreference = await loadBottomBarModulePreference(preferenceScope);
+
+      if (!mounted) {
+        return;
+      }
+
+      if (!storedPreference) {
+        setBottomBarModules(defaultBottomBarModules);
+        return;
+      }
+
+      setBottomBarModules(sanitizeBottomBarModules(storedPreference.selectedModuleKeys, visibleModules));
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [defaultBottomBarModules, preferenceScope, visibleModules]);
 
   const homeCards = useMemo<HomeDashboardModule[]>(
     () =>
@@ -242,8 +286,31 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
     [visibleModules],
   );
 
-  const breadcrumbText = useMemo(() => pageStack.map(getBreadcrumbLabel).join(' / '), [pageStack]);
-  const isBackDisabled = pageStack.length <= 1;
+  const preferenceOptions = useMemo<BottomBarPreferenceOption[]>(
+    () =>
+      visibleModules.map((moduleKey) => ({
+        key: moduleKey,
+        title: MODULE_CONFIGS[moduleKey].title,
+        subtitle: MODULE_CONFIGS[moduleKey].subtitle,
+        icon: MODULE_CONFIGS[moduleKey].icon,
+      })),
+    [visibleModules],
+  );
+
+  const bottomNavItems = useMemo(
+    () => [
+      { key: 'Home' as const, label: 'Home', icon: 'home-outline' },
+      ...bottomBarModules.map((moduleKey) => ({
+        key: moduleKey,
+        label: MODULE_CONFIGS[moduleKey].title,
+        icon: MODULE_CONFIGS[moduleKey].icon,
+      })),
+    ],
+    [bottomBarModules],
+  );
+
+  const activeBottomBarKey = useMemo(() => getActiveBottomBarKey(activePage), [activePage]);
+
   const isFullScreenFlow = activePage === 'New Visit' || activePage === 'New Patient';
 
   const navigateRootPage = (page: Exclude<PageKey, 'Task Details'> | ModulePageKey) => {
@@ -258,14 +325,6 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
     setPageStack(['Home', page as PageKey]);
   };
 
-  const goBack = () => {
-    if (isBackDisabled) {
-      return;
-    }
-
-    setPageStack((previousStack) => previousStack.slice(0, -1));
-  };
-
   const handleSummaryItemPress = (item: HomeDashboardSummaryItem) => {
     if (!item.metric) {
       return;
@@ -276,17 +335,11 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
     setIsSummaryModalVisible(true);
   };
 
-  const handleSelectMenuItem = (key: string) => {
-    if (key !== 'Home' && !(key in MODULE_CONFIGS)) {
-      return;
-    }
-
-    if (key !== 'Home' && !visibleModuleSet.has(key as ModulePageKey)) {
-      return;
-    }
-
-    navigateRootPage(key as Exclude<PageKey, 'Task Details'> | ModulePageKey);
-    setIsMenuVisible(false);
+  const handleSaveBottomBarPreferences = async (selectedKeys: string[]) => {
+    const sanitizedSelection = sanitizeBottomBarModules(selectedKeys, visibleModules);
+    setBottomBarModules(sanitizedSelection);
+    setIsPreferencesVisible(false);
+    await saveBottomBarModulePreference(preferenceScope, { selectedModuleKeys: sanitizedSelection });
   };
 
   const openTaskDetails = (taskId: string) => {
@@ -405,7 +458,6 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
           facilityId={user.selectedFacility.id}
           facilityName={activeFacilityName}
           displayName={displayName || user.userName || 'Clinician'}
-          onMenuPress={() => setIsMenuVisible(true)}
           onProfilePress={() => setIsProfileMenuVisible(true)}
           onViewVisits={() => setPageStack(['Home', 'Visits'])}
           onSaved={() => setPageStack(['Home'])}
@@ -453,7 +505,6 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
           facilityId={user.selectedFacility.id}
           facilityName={activeFacilityName}
           displayName={displayName || user.userName || 'Clinician'}
-          onMenuPress={() => setIsMenuVisible(true)}
           onProfilePress={() => setIsProfileMenuVisible(true)}
           onViewPatients={() => setPageStack(['Home', 'Patients'])}
           onSaved={() => setPageStack(['Home'])}
@@ -468,44 +519,13 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
           edges={["top", "left", "right", "bottom"]}
         >
           <HomeDashboard
-            brandTitle={activeFacilityName}
-            brandSubtitle="Click Health Pro"
             displayName={displayName || user.userName || "Clinician"}
             quickActions={quickActions}
             summaryItems={summaryItems}
             modules={homeCards}
-            onMenuPress={() => setIsMenuVisible(true)}
-            onFacilityPress={() => setIsFacilityModalVisible(true)}
-            onProfilePress={() => setIsProfileMenuVisible(true)}
+            onOpenPreferences={() => setIsPreferencesVisible(true)}
+            onOpenProfilePanel={() => setIsProfileMenuVisible(true)}
             onSummaryItemPress={handleSummaryItemPress}
-            onHomePress={() => navigateRootPage("Home")}
-          />
-
-          <SideMenu
-            visible={isMenuVisible}
-            items={menuItems}
-            activeItemKey={activePage}
-            onSelectItem={handleSelectMenuItem}
-            onClose={() => setIsMenuVisible(false)}
-          />
-
-          <ProfileMenu
-            visible={isProfileMenuVisible}
-            displayName={displayName}
-            email={user.email}
-            onClose={() => setIsProfileMenuVisible(false)}
-            onSignOut={() => {
-              setIsProfileMenuVisible(false);
-              void onSignOut();
-            }}
-          />
-
-          <FacilitySwitchModal
-            visible={isFacilityModalVisible}
-            facilities={user.associatedFacilities}
-            selectedFacilityId={user.selectedFacility?.id ?? null}
-            onClose={() => setIsFacilityModalVisible(false)}
-            onConfirm={onSelectFacility}
           />
 
           {user.selectedFacility?.id && selectedSummaryMetric ? (
@@ -557,16 +577,13 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
       <View style={[styles.contentWrap, isFullScreenFlow ? styles.contentWrapFullScreen : null]}>
         {!isFullScreenFlow ? (
           <View style={[styles.headerRow, { paddingHorizontal: layout.horizontalPadding, paddingTop: layout.isTablet ? 16 : 12 }]}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Open menu" onPress={() => setIsMenuVisible(true)} style={styles.headerAction}>
-              <IconButton icon="menu" size={18} iconColor={themeColors.textSecondary} style={styles.headerActionIcon} />
-            </Pressable>
+            <View style={styles.headerLogoWrap}>
+              <BrandLogo />
+            </View>
 
             <View style={styles.brandTextWrap}>
               <Text numberOfLines={1} style={styles.brandTitle}>
                 {activeFacilityName}
-              </Text>
-              <Text numberOfLines={1} style={styles.brandSubtitle}>
-                {'Click Health Pro'}
               </Text>
             </View>
 
@@ -582,67 +599,52 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
           </View>
         ) : null}
 
-        {/* <View style={styles.fixedHeaderWrap}>
-          <View style={styles.breadcrumbWrap}>
-            <IconButton
-              icon="arrow-left"
-              size={18}
-              mode="contained-tonal"
-              disabled={isBackDisabled}
-              onPress={goBack}
-              style={styles.backButton}
-            />
-            <Text numberOfLines={1} style={styles.breadcrumbCurrent}>{breadcrumbText}</Text>
-          </View>
-        </View> */}
-
         <View style={[styles.contentScroll, !isFullScreenFlow ? { paddingBottom: insets.bottom } : null]}>
           {renderPageContent()}
         </View>
         {!isFullScreenFlow ? (
           <View style={[styles.bottomNav, { paddingHorizontal: layout.horizontalPadding }]}>
-            {[
-              { key: 'Home', label: 'Home', active: true },
-              { key: 'Search', label: 'Search', active: false },
-              { key: 'Alerts', label: 'Alerts', active: false },
-              { key: 'Profile', label: 'Profile', active: false },
-            ].map((item) => (
+            {bottomNavItems.map((item) => (
               <Pressable
                 key={item.key}
                 style={styles.bottomNavItemWrap}
-                onPress={item.key === 'Home' ? () => navigateRootPage('Home') : undefined}
-                disabled={item.key !== 'Home'}
+                onPress={() => navigateRootPage(item.key === 'Home' ? 'Home' : item.key)}
               >
                 <IconButton
-                  icon={item.key === 'Home' ? 'home-outline' : item.key === 'Search' ? 'magnify' : item.key === 'Alerts' ? 'bell-outline' : 'account-outline'}
+                  icon={item.icon}
                   size={16}
-                  iconColor={item.active ? themeColors.primary : themeColors.textSecondary}
+                  iconColor={activeBottomBarKey === item.key ? themeColors.primary : themeColors.textSecondary}
                   style={styles.bottomNavIcon}
                 />
-                <Text style={item.active ? styles.bottomNavLabelActive : styles.bottomNavLabel}>{item.label}</Text>
+                <Text style={activeBottomBarKey === item.key ? styles.bottomNavLabelActive : styles.bottomNavLabel}>{item.label}</Text>
               </Pressable>
             ))}
           </View>
         ) : null}
       </View>
-      
-
-      <SideMenu
-        visible={isMenuVisible}
-        items={menuItems}
-        activeItemKey={activePage}
-        onSelectItem={handleSelectMenuItem}
-        onClose={() => setIsMenuVisible(false)}
-      />
 
       <ProfileMenu
         visible={isProfileMenuVisible}
         displayName={displayName}
         email={user.email}
+        onViewAttendance={() => {
+          setIsProfileMenuVisible(false);
+          navigateRootPage('My Attendance');
+        }}
         onClose={() => setIsProfileMenuVisible(false)}
         onSignOut={() => {
           setIsProfileMenuVisible(false);
           void onSignOut();
+        }}
+      />
+
+      <BottomBarPreferencesModal
+        visible={isPreferencesVisible}
+        options={preferenceOptions}
+        selectedKeys={bottomBarModules}
+        onClose={() => setIsPreferencesVisible(false)}
+        onSave={(selectedKeys) => {
+          void handleSaveBottomBarPreferences(selectedKeys);
         }}
       />
 
@@ -666,11 +668,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: themeColors.surface,
   },
-  headerAction: {
-    width: 30,
+  headerLogoWrap: {
+    width: 70,
     height: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   facilityAction: {
     width: 28,
@@ -689,15 +689,6 @@ const styles = StyleSheet.create({
   contentWrapFullScreen: {
     paddingBottom: 0,
   },
-  topDivider: {
-    backgroundColor: themeColors.border,
-    height: 1,
-  },
-  fixedHeaderWrap: {
-    paddingTop: 8,
-    paddingBottom: 8,
-    gap: 6,
-  },
   headerActionIcon: {
     margin: 0,
   },
@@ -705,6 +696,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingBottom: 8,
   },
   brandTextWrap: {
     flex: 1,
@@ -718,9 +710,9 @@ const styles = StyleSheet.create({
   },
   brandTitle: {
     color: themeColors.textPrimary,
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '800',
-    lineHeight: 18,
+    lineHeight: 22,
     textAlign: 'center',
   },
   brandSubtitle: {
@@ -737,27 +729,6 @@ const styles = StyleSheet.create({
     color: themeColors.textOnBrand,
     fontSize: 14,
     fontWeight: '800',
-  },
-  breadcrumbWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    justifyContent: 'flex-start',
-    gap: 8,
-    borderRadius: 10,
-    backgroundColor: themeColors.surface,
-    borderWidth: 1,
-    borderColor: themeColors.border,
-    paddingVertical: 6,
-  },
-  backButton: {
-    margin: 0,
-    backgroundColor: themeColors.surfaceMuted,
-  },
-  breadcrumbCurrent: {
-    color: themeColors.textPrimary,
-    fontSize: 14,
-    fontWeight: '700',
   },
   contentScroll: {
     flex: 1,

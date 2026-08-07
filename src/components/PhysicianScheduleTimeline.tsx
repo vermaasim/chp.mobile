@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { loadPhysicianAvailableSlots, loadPhysicianScheduleForDate } from '../api/visits';
+import { CenteredLoader } from './CenteredLoader';
 import { themeColors } from '../theme/colors';
 import type { AvailableSlot, PhysicianScheduleItem } from '../types/visits';
 
@@ -149,10 +150,7 @@ export function PhysicianScheduleTimeline({
           </View>
 
           {loading ? (
-            <View style={styles.loadingWrap}>
-              <ActivityIndicator color={themeColors.primary} />
-              <Text style={styles.loadingText}>Loading schedule...</Text>
-            </View>
+            <CenteredLoader message="Loading schedule..." containerStyle={styles.loadingWrap} />
           ) : null}
 
           {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}

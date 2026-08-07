@@ -5,6 +5,7 @@ import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar, IconButton } from 'react-native-paper';
 import { createPatient } from '../api/patients';
+import { BrandLogo } from './BrandLogo';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { themeColors } from '../theme/colors';
 import { formatDateInput } from '../utils/dateRangeFilter';
@@ -15,7 +16,6 @@ interface NewPatientPanelProps {
   facilityId: string;
   facilityName: string;
   displayName: string;
-  onMenuPress: () => void;
   onProfilePress: () => void;
   onViewPatients?: () => void;
   onSaved: () => void;
@@ -159,7 +159,6 @@ export function NewPatientPanel({
   facilityId,
   facilityName,
   displayName,
-  onMenuPress,
   onProfilePress,
   onViewPatients,
   onSaved,
@@ -646,9 +645,9 @@ export function NewPatientPanel({
       <View style={[styles.headerShell, { paddingTop: Math.max(6, insets.top + 4), paddingHorizontal: layout.horizontalPadding }]}>
         <View style={[styles.headerInner, layout.formMaxWidth ? { maxWidth: layout.formMaxWidth } : null]}>
           <View style={styles.topBarRow}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Open menu" onPress={onMenuPress} style={styles.topIconButton}>
-              <IconButton icon="menu" size={18} iconColor={themeColors.textPrimary} style={styles.topIconButtonInner} />
-            </Pressable>
+            <View style={styles.topLogoWrap}>
+              <BrandLogo width={108} height={26} />
+            </View>
             <View style={styles.brandWrap}>
               <Text numberOfLines={1} style={styles.facilityName}>{facilityName}</Text>
               <Text style={styles.brandSubtitle}>Click Health Pro</Text>
@@ -749,18 +748,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12,
   },
-  topIconButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: themeColors.border,
-    backgroundColor: themeColors.surface,
-    alignItems: 'center',
+  topLogoWrap: {
+    width: 108,
+    minHeight: 38,
     justifyContent: 'center',
-  },
-  topIconButtonInner: {
-    margin: 0,
   },
   brandWrap: {
     flex: 1,

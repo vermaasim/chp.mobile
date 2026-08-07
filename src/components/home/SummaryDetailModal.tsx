@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Modal, Pressable, StyleSheet, View } from 'react-native';
+import { FlatList, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { IconButton, Text } from 'react-native-paper';
 import { loadPatientsByCreatedDateRange } from '../../api/patients';
 import { loadFacilityVisits, loadVisitDetails } from '../../api/visits';
 import { loadMyAssignedServices } from '../../api/worklist';
+import { CenteredLoader } from '../CenteredLoader';
 import { themeColors } from '../../theme/colors';
 import type { PatientSummary } from '../../types/patients';
 import type { AssignedService } from '../../types/worklist';
@@ -174,10 +175,7 @@ export function SummaryDetailModal({ visible, title, metric, token, facilityId, 
           </View>
 
           {loading ? (
-            <View style={styles.loadingState}>
-              <ActivityIndicator color={themeColors.primary} />
-              <Text style={styles.emptyText}>Loading details…</Text>
-            </View>
+            <CenteredLoader message="Loading details..." containerStyle={styles.loadingState} />
           ) : null}
 
           {!loading && errorMessage ? (

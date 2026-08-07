@@ -1,7 +1,7 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { StyleSheet, View } from 'react-native';
-import { ActivityIndicator } from 'react-native-paper';
+import { StyleSheet } from 'react-native';
+import { CenteredLoader } from '../components/CenteredLoader';
 import { HomeScreen } from '../screens/HomeScreen';
 import { FacilitySelectionScreen } from '../screens/FacilitySelectionScreen';
 import { LoginScreen } from '../screens/LoginScreen';
@@ -20,11 +20,7 @@ const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const AppStack = createNativeStackNavigator<AppStackParamList>();
 
 function LoadingScreen() {
-  return (
-    <View style={styles.loadingContainer}>
-      <ActivityIndicator size="large" color="#06ADAF" animating />
-    </View>
-  );
+  return <CenteredLoader fullScreen message="Loading app..." containerStyle={styles.loadingContainer} />;
 }
 
 function AuthStackNavigator() {

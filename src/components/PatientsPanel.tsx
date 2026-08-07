@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DateRangeFilterCard } from './DateRangeFilterCard';
+import { CenteredLoader } from './CenteredLoader';
 import { loadPatientsByCreatedDateRange } from '../api/patients';
 import { loadPatientsDateFilterPreference, savePatientsDateFilterPreference } from '../storage/patientsFilter';
 import { allStyles } from '../styles/commonStyles';
@@ -154,14 +155,7 @@ export function PatientsPanel({ token, facilityId, onOpenPatientDetails, onOpenC
 
       {errorMessage ? <Text style={allStyles.errorText}>{errorMessage}</Text> : null}
 
-      {loading ? (
-        <View style={allStyles.loadingWrap}>
-          <View style={allStyles.loadingRow}>
-            <ActivityIndicator size="small" color={themeColors.primary} />
-            <Text style={allStyles.loadingText}>Loading patients...</Text>
-          </View>
-        </View>
-      ) : null}
+      {loading ? <CenteredLoader message="Loading patients..." containerStyle={allStyles.loadingWrap} /> : null}
 
       <ScrollView style={allStyles.list} contentContainerStyle={[allStyles.listContent, styles.listContentWithFab]}>
         {filteredPatients.map((patient) => (

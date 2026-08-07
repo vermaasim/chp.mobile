@@ -17,6 +17,7 @@ import {
   loadServiceLinkedRecords,
 } from '../api/records';
 import { mapEditingRecordToTemplate, type EditableRecordState } from './AddRecordModal';
+import { CenteredLoader } from './CenteredLoader';
 import { loadServiceDetails, updateServiceStatus } from '../api/worklist';
 import { taskDetailsPanelStyles } from '../styles/commonStyles';
 import { themeColors } from '../theme/colors';
@@ -859,14 +860,7 @@ export function TaskDetailsPanel({ token, taskId, facilityId, refreshSeed, allow
   };
 
   if (loading) {
-    return (
-      <View style={taskDetailsPanelStyles.loadingWrap}>
-        <View style={taskDetailsPanelStyles.loadingRow}>
-          <ActivityIndicator size="small" color={themeColors.primary} />
-          <Text style={taskDetailsPanelStyles.loadingText}>Loading task details...</Text>
-        </View>
-      </View>
-    );
+    return <CenteredLoader message="Loading task details..." containerStyle={taskDetailsPanelStyles.loadingWrap} />;
   }
 
   if (errorMessage) {

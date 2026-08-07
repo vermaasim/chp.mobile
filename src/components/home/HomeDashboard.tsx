@@ -27,35 +27,26 @@ export interface HomeDashboardSummaryItem {
 }
 
 interface HomeDashboardProps {
-  brandTitle: string;
-  brandSubtitle: string;
   displayName: string;
   quickActions: HomeDashboardQuickAction[];
   summaryItems: HomeDashboardSummaryItem[];
   modules: HomeDashboardModule[];
-  onMenuPress: () => void;
-  onFacilityPress: () => void;
-  onProfilePress: () => void;
+  onOpenPreferences: () => void;
+  onOpenProfilePanel: () => void;
   onSummaryItemPress?: (item: HomeDashboardSummaryItem) => void;
-  onHomePress?: () => void;
 }
 
 export function HomeDashboard({
-  brandTitle,
-  brandSubtitle,
   displayName,
   quickActions,
   summaryItems,
   modules,
-  onMenuPress,
-  onFacilityPress,
-  onProfilePress,
+  onOpenPreferences,
+  onOpenProfilePanel,
   onSummaryItemPress,
-  onHomePress,
 }: HomeDashboardProps) {
   const layout = useResponsiveLayout();
   const heroName = displayName.startsWith('Dr.') ? displayName : `Dr. ${displayName}`;
-  const visibleModules = modules.slice(0, 3);
   const quickActionBasis = layout.isLandscape ? '24%' : '31.5%';
 
   return (
@@ -66,37 +57,29 @@ export function HomeDashboard({
         showsVerticalScrollIndicator={false}
       >
         <View style={[styles.contentInner, layout.contentMaxWidth ? { maxWidth: layout.contentMaxWidth } : null]}>
-        {/* <View style={styles.headerRow}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Open menu" onPress={onMenuPress} style={styles.headerAction}>
-            <IconButton icon="menu" size={18} iconColor={themeColors.textSecondary} style={styles.headerActionIcon} />
-          </Pressable>
-
-          <View style={styles.brandTextWrap}>
-            <Text numberOfLines={1} style={styles.brandTitle}>
-              {brandTitle}
-            </Text>
-            <Text numberOfLines={1} style={styles.brandSubtitle}>
-              {brandSubtitle}
-            </Text>
-          </View>
-
-          <View style={styles.headerActions}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Switch facility" onPress={onFacilityPress} style={styles.facilityAction}>
-              <IconButton icon="swap-horizontal" size={16} iconColor={themeColors.secondary} style={styles.headerActionIcon} />
-            </Pressable>
-
-            <Pressable accessibilityRole="button" accessibilityLabel="Open profile" onPress={onProfilePress}>
-              <Avatar.Text size={36} label={avatarLabel} labelStyle={styles.avatarLabel} style={styles.avatar} />
-            </Pressable>
-          </View>
-        </View> */}
-
         <Card mode="outlined" style={styles.heroCard}>
           <Card.Content style={styles.heroContent}>
-            <Text style={styles.heroEyebrow}>Welcome back</Text>
-            <Text numberOfLines={1} style={styles.heroTitle}>
-              {heroName || 'Clinician'}
-            </Text>
+            <View style={styles.heroTopRow}>
+              <View style={styles.heroTextWrap}>
+                <Text style={styles.heroEyebrow}>Welcome back</Text>
+                <Text numberOfLines={1} style={styles.heroTitle}>
+                  {heroName || 'Clinician'}
+                </Text>
+              </View>
+
+              <View style={styles.heroActionsRow}>
+                {/* <Pressable accessibilityRole="button" accessibilityLabel="Open profile panel" onPress={onOpenProfilePanel} style={styles.heroActionButton}>
+                  <IconButton icon="account-circle-outline" size={18} iconColor={themeColors.textOnBrand} style={styles.heroActionIcon} />
+                  <Text style={styles.heroActionLabel}>Profile</Text>
+                </Pressable> */}
+
+                <Pressable accessibilityRole="button" accessibilityLabel="Open bottom bar preferences" onPress={onOpenPreferences} style={styles.heroActionButton}>
+                  <IconButton icon="tune-variant" size={18} iconColor={themeColors.textOnBrand} style={styles.heroActionIcon} />
+                  <Text style={styles.heroActionLabel}>Preferences</Text>
+                </Pressable>
+              </View>
+            </View>
+₹
           </Card.Content>
         </Card>
 
@@ -161,7 +144,7 @@ export function HomeDashboard({
         <View style={styles.sectionBlock}>
           <Text style={styles.sectionTitle}>Core modules</Text>
           <View style={styles.moduleList}>
-            {visibleModules.map((module) => (
+            {modules.map((module) => (
               <Pressable key={module.key} style={styles.moduleRow} onPress={module.onPress}>
                 <View
                   style={[
@@ -176,24 +159,13 @@ export function HomeDashboard({
                   <Text style={styles.moduleTitle}>{module.title}</Text>
                   <Text style={styles.moduleSubtitle}>{module.subtitle}</Text>
                 </View>
-                  <IconButton icon="chevron-right" size={14} iconColor={themeColors.textSecondary} style={styles.moduleChevron} />
+                <IconButton icon="chevron-right" size={14} iconColor={themeColors.textSecondary} style={styles.moduleChevron} />
               </Pressable>
             ))}
-
-            <View style={styles.moduleRow}>
-              <View style={styles.moduleIconWrapMuted}>
-                  <IconButton icon="dots-horizontal" size={14} iconColor={themeColors.textSecondary} style={styles.moduleIcon} />
-              </View>
-              <View style={styles.moduleTextWrap}>
-                <Text style={styles.moduleTitleMuted}>More modules appear here</Text>
-              </View>
-            </View>
           </View>
         </View>
       </View>
       </ScrollView>
-
-      
     </View>
   );
 }
@@ -216,62 +188,6 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     gap: 12,
   },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  headerAction: {
-    width: 30,
-    height: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerActionIcon: {
-    margin: 0,
-  },
-  brandTextWrap: {
-    flex: 1,
-    alignItems: 'center',
-    paddingHorizontal: 8,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  facilityAction: {
-    width: 28,
-    height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 14,
-    backgroundColor: themeColors.surfaceMuted,
-    borderWidth: 1,
-    borderColor: themeColors.border,
-  },
-  brandTitle: {
-    color: themeColors.textPrimary,
-    fontSize: 14,
-    fontWeight: '800',
-    lineHeight: 18,
-    textAlign: 'center',
-  },
-  brandSubtitle: {
-    color: themeColors.textSecondary,
-    fontSize: 11,
-    fontWeight: '600',
-    lineHeight: 14,
-    textAlign: 'center',
-  },
-  avatar: {
-    backgroundColor: themeColors.primary,
-  },
-  avatarLabel: {
-    color: themeColors.textOnBrand,
-    fontSize: 14,
-    fontWeight: '800',
-  },
   heroCard: {
     borderRadius: 18,
     borderWidth: 0,
@@ -280,7 +196,18 @@ const styles = StyleSheet.create({
   heroContent: {
     paddingHorizontal: 14,
     paddingVertical: 16,
+    gap: 12,
+  },
+  heroTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  heroTextWrap: {
+    flex: 1,
     gap: 2,
+    paddingTop: 2,
   },
   heroEyebrow: {
     color: themeColors.textOnBrand,
@@ -293,6 +220,36 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     lineHeight: 22,
+  },
+  heroActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  heroActionButton: {
+    minWidth: 74,
+    borderRadius: 14,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
+    gap: 2,
+  },
+  heroActionIcon: {
+    margin: 0,
+  },
+  heroActionLabel: {
+    color: themeColors.textOnBrand,
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  heroSupportText: {
+    color: themeColors.textOnBrand,
+    fontSize: 12,
+    lineHeight: 18,
+    opacity: 0.92,
   },
   sectionBlock: {
     gap: 8,
@@ -403,16 +360,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 145, 77, 0.14)',
     borderColor: 'rgba(255, 145, 77, 0.14)',
   },
-  moduleIconWrapMuted: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    backgroundColor: '#EFF2F1',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#EFF2F1',
-  },
   moduleIcon: {
     margin: 0,
   },
@@ -424,11 +371,6 @@ const styles = StyleSheet.create({
     color: themeColors.textPrimary,
     fontSize: 14,
     fontWeight: '700',
-  },
-  moduleTitleMuted: {
-    color: themeColors.textSecondary,
-    fontSize: 14,
-    fontWeight: '600',
   },
   moduleSubtitle: {
     color: themeColors.textSecondary,
