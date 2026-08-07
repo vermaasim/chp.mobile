@@ -97,6 +97,22 @@ function formatAddress(patient?: PatientDetail | null) {
     .join(', ') || '-';
 }
 
+function getPatientStatusTone(patient?: PatientDetail | null) {
+  if (patient?.isActive === false) {
+    return {
+      badgeStyle: taskDetailsPanelStyles.statusChipNotStarted,
+      textStyle: taskDetailsPanelStyles.statusChipTextNotStarted,
+      label: 'Inactive',
+    };
+  }
+
+  return {
+    badgeStyle: taskDetailsPanelStyles.statusChipCompleted,
+    textStyle: taskDetailsPanelStyles.statusChipTextCompleted,
+    label: 'Active',
+  };
+}
+
 function formatRecordType(record: TaskDetailRecord) {
   if (record.sourceType === 'prescription') {
     return record.prescriptionType || 'Prescription';
@@ -180,15 +196,7 @@ export function PatientDetailsPanel({ token, facilityId, patientId }: PatientDet
     };
   }, [token, facilityId, patientId]);
 
-  const headerMetaRows = useMemo(
-    () => [
-      { key: 'MRN', value: patient?.mrn || '-' },
-      { key: 'Gender', value: patient?.gender || '-' },
-      { key: 'Age', value: formatAge(patient?.ageInYears) },
-      { key: 'Mobile', value: patient?.mobileNo || '-' },
-    ],
-    [patient],
-  );
+  const patientStatusTone = useMemo(() => getPatientStatusTone(patient), [patient]);
 
   const loadVisitRecords = async (visitId: string) => {
     setVisitRecords((current) => ({
@@ -250,16 +258,41 @@ export function PatientDetailsPanel({ token, facilityId, patientId }: PatientDet
     <ScrollView style={taskDetailsPanelStyles.panelRoot} contentContainerStyle={taskDetailsPanelStyles.scrollContent}>
       <Card mode="outlined" style={taskDetailsPanelStyles.headerCard}>
         <Card.Content>
-          <Text style={taskDetailsPanelStyles.headerEyebrow}>Patient</Text>
-          <Text style={taskDetailsPanelStyles.title}>{formatPatientName(patient)}</Text>
+          <View style={taskDetailsPanelStyles.statusRow}>
+            <View style={taskDetailsPanelStyles.titleBlock}>
+              <Text style={taskDetailsPanelStyles.headerEyebrow}>Patient Details</Text>
+              <Text style={taskDetailsPanelStyles.title}>{formatPatientName(patient)}</Text>
+              <Text style={taskDetailsPanelStyles.subTitle}>{patient?.mrn || 'MRN not available'}</Text>
+            </View>
+            <View style={[taskDetailsPanelStyles.statusChip, patientStatusTone.badgeStyle]}>
+              <Text style={[taskDetailsPanelStyles.statusChipText, patientStatusTone.textStyle]}>{patientStatusTone.label}</Text>
+            </View>
+          </View>
 
           <View style={taskDetailsPanelStyles.metaGrid}>
-            {headerMetaRows.map((row) => (
-              <View key={row.key} style={taskDetailsPanelStyles.metaRowCard}>
-                <Text style={taskDetailsPanelStyles.metaKey}>{row.key}</Text>
-                <Text style={taskDetailsPanelStyles.metaValue}>{row.value}</Text>
+            <View style={taskDetailsPanelStyles.metaRowCard}>
+              <View style={taskDetailsPanelStyles.metaTwoColRow}>
+                <View style={taskDetailsPanelStyles.metaFieldBlock}>
+                  <Text style={taskDetailsPanelStyles.metaLabel}>Gender</Text>
+                  <Text style={taskDetailsPanelStyles.metaText}>{patient?.gender || '-'}</Text>
+                </View>
+                <View style={taskDetailsPanelStyles.metaFieldBlock}>
+                  <Text style={taskDetailsPanelStyles.metaLabel}>Age</Text>
+                  <Text style={taskDetailsPanelStyles.metaText}>{formatAge(patient?.ageInYears)}</Text>
+                </View>
               </View>
-            ))}
+
+              <View style={taskDetailsPanelStyles.metaTwoColRow}>
+                <View style={taskDetailsPanelStyles.metaFieldBlock}>
+                  <Text style={taskDetailsPanelStyles.metaLabel}>Mobile</Text>
+                  <Text style={taskDetailsPanelStyles.metaText}>{patient?.mobileNo || '-'}</Text>
+                </View>
+                <View style={taskDetailsPanelStyles.metaFieldBlock}>
+                  <Text style={taskDetailsPanelStyles.metaLabel}>Date of Birth</Text>
+                  <Text style={taskDetailsPanelStyles.metaText}>{formatDate(patient?.dateOfBirth)}</Text>
+                </View>
+              </View>
+            </View>
           </View>
         </Card.Content>
       </Card>
