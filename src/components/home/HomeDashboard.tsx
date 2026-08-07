@@ -79,7 +79,6 @@ export function HomeDashboard({
                 </Pressable>
               </View>
             </View>
-₹
           </Card.Content>
         </Card>
 

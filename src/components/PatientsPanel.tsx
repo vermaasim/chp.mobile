@@ -1,15 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { DateRangeFilterCard } from './DateRangeFilterCard';
 import { CenteredLoader } from './CenteredLoader';
-import { loadPatientsByCreatedDateRange } from '../api/patients';
-import { loadPatientsDateFilterPreference, savePatientsDateFilterPreference } from '../storage/patientsFilter';
+import { loadLastAccessedPatients, searchFacilityPatients } from '../api/patients';
 import { allStyles } from '../styles/commonStyles';
 import { themeColors } from '../theme/colors';
 import type { PatientSummary } from '../types/patients';
-import { getRangeForOption, type DateFilterOption } from '../utils/dateRangeFilter';
 
 interface PatientsPanelProps {
   token: string;
@@ -17,6 +14,8 @@ interface PatientsPanelProps {
   onOpenPatientDetails: (patientId: string) => void;
   onOpenCreatePatient: () => void;
 }
+
+const PATIENT_LIST_COUNT = 20;
 
 function formatPatientName(patient: PatientSummary) {
   return [patient.prefix, patient.firstName, patient.lastName].filter(Boolean).join(' ').trim() || 'Unnamed Patient';
@@ -40,102 +39,57 @@ function formatStatus(patient: PatientSummary) {
 
 export function PatientsPanel({ token, facilityId, onOpenPatientDetails, onOpenCreatePatient }: PatientsPanelProps) {
   const insets = useSafeAreaInsets();
-  const initialRange = useMemo(() => getRangeForOption('today'), []);
-  const [fromDate, setFromDate] = useState(initialRange.fromDate);
-  const [toDate, setToDate] = useState(initialRange.toDate);
-  const [selectedFilterOption, setSelectedFilterOption] = useState<DateFilterOption>('today');
   const [patients, setPatients] = useState<PatientSummary[]>([]);
   const [searchText, setSearchText] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
 
-  const refreshPatients = async (nextFromDate = fromDate, nextToDate = toDate) => {
+  const fetchPatients = async (keyword: string) => {
+    const normalizedKeyword = keyword.trim();
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+
     setLoading(true);
     setErrorMessage(null);
 
     try {
-      const items = await loadPatientsByCreatedDateRange(token, facilityId, nextFromDate, nextToDate);
+      const items = normalizedKeyword
+        ? await searchFacilityPatients(token, facilityId, normalizedKeyword)
+        : await loadLastAccessedPatients(token, facilityId, PATIENT_LIST_COUNT);
+
+      if (requestId !== requestIdRef.current) {
+        return;
+      }
+
       setPatients(items ?? []);
     } catch (error) {
+      if (requestId !== requestIdRef.current) {
+        return;
+      }
+
       setErrorMessage(error instanceof Error ? error.message : 'Unable to load patients.');
       setPatients([]);
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
-    let isMounted = true;
-
-    const bootstrapFilter = async () => {
-      const savedPreference = await loadPatientsDateFilterPreference();
-
-      if (!isMounted) {
-        return;
-      }
-
-      if (!savedPreference) {
-        await refreshPatients(initialRange.fromDate, initialRange.toDate);
-        return;
-      }
-
-      setSelectedFilterOption(savedPreference.option);
-      setFromDate(savedPreference.fromDate);
-      setToDate(savedPreference.toDate);
-
-      await refreshPatients(savedPreference.fromDate, savedPreference.toDate);
-    };
-
-    void bootstrapFilter();
+    const keyword = searchText.trim();
+    const timer = setTimeout(() => {
+      void fetchPatients(keyword);
+    }, keyword ? 250 : 0);
 
     return () => {
-      isMounted = false;
+      clearTimeout(timer);
     };
-  }, []);
-
-  const filteredPatients = useMemo(() => {
-    const normalizedQuery = searchText.trim().toLowerCase();
-
-    if (!normalizedQuery) {
-      return patients;
-    }
-
-    return patients.filter((patient) => {
-      const fields = [
-        patient.mrn,
-        patient.firstName,
-        patient.lastName,
-        patient.gender,
-        patient.mobileNo,
-        patient.emailId,
-      ];
-
-      return fields.some((value) => value?.toLowerCase().includes(normalizedQuery));
-    });
-  }, [patients, searchText]);
+  }, [facilityId, searchText, token]);
 
   return (
     <View style={[allStyles.container, styles.panelRoot]}>
-      <DateRangeFilterCard
-        summaryLabel="Patients created"
-        selectedOption={selectedFilterOption}
-        fromDate={fromDate}
-        toDate={toDate}
-        onApply={async (selection) => {
-          setSelectedFilterOption(selection.option);
-          setFromDate(selection.fromDate);
-          setToDate(selection.toDate);
-
-          await savePatientsDateFilterPreference({
-            option: selection.option,
-            fromDate: selection.fromDate,
-            toDate: selection.toDate,
-          });
-
-          await refreshPatients(selection.fromDate, selection.toDate);
-        }}
-      />
-
       <View style={styles.searchRow}>
         <View style={styles.searchFieldWrap}>
           <Feather name="search" size={16} color={themeColors.textSecondary} />
@@ -148,17 +102,17 @@ export function PatientsPanel({ token, facilityId, onOpenPatientDetails, onOpenC
           />
         </View>
 
-        <Pressable accessibilityRole="button" onPress={() => void refreshPatients()} style={styles.refreshButton}>
+        <Pressable accessibilityRole="button" onPress={() => void fetchPatients(searchText)} style={styles.refreshButton}>
           <Feather name="refresh-cw" size={16} color={themeColors.primary} />
         </Pressable>
       </View>
 
       {errorMessage ? <Text style={allStyles.errorText}>{errorMessage}</Text> : null}
 
-      {loading ? <CenteredLoader message="Loading patients..." containerStyle={allStyles.loadingWrap} /> : null}
+      {loading ? <CenteredLoader message={searchText.trim() ? 'Searching patients...' : 'Loading patients...'} containerStyle={allStyles.loadingWrap} /> : null}
 
       <ScrollView style={allStyles.list} contentContainerStyle={[allStyles.listContent, styles.listContentWithFab]}>
-        {filteredPatients.map((patient) => (
+        {patients.map((patient) => (
           <Pressable
             key={patient.id}
             accessibilityRole="button"
@@ -184,11 +138,11 @@ export function PatientsPanel({ token, facilityId, onOpenPatientDetails, onOpenC
           </Pressable>
         ))}
 
-        {!loading && filteredPatients.length === 0 ? (
+        {!loading && patients.length === 0 ? (
           <View style={allStyles.emptyState}>
             <Feather name="users" size={18} color={themeColors.textSecondary} />
-            <Text style={allStyles.emptyText}>No patients found for this filter</Text>
-            <Text style={allStyles.emptySubText}>Adjust the date range or search terms.</Text>
+            <Text style={allStyles.emptyText}>No patients found</Text>
+            <Text style={allStyles.emptySubText}>Try a different search or refresh the active list.</Text>
           </View>
         ) : null}
       </ScrollView>
@@ -213,7 +167,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 8,
+    marginBottom: 10,
   },
   searchFieldWrap: {
     flex: 1,
@@ -244,7 +198,7 @@ const styles = StyleSheet.create({
     backgroundColor: themeColors.surface,
   },
   listContentWithFab: {
-    paddingBottom: 144,
+    paddingBottom: 108,
   },
   activeBadge: {
     backgroundColor: themeColors.successSurface,

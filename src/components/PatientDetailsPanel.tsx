@@ -6,7 +6,7 @@ import { loadPatientDetails } from '../api/patients';
 import { loadServiceLinkedRecords } from '../api/records';
 import { loadVisitLinkedServices } from '../api/visits';
 import { CenteredLoader } from './CenteredLoader';
-import { allStyles, taskDetailsPanelStyles } from '../styles/commonStyles';
+import { taskDetailsPanelStyles } from '../styles/commonStyles';
 import { themeColors } from '../theme/colors';
 import type { PatientDetail, PatientVisitSummary } from '../types/patients';
 import type { VisitLinkedService } from '../types/visits';
@@ -111,6 +111,27 @@ function formatRecordType(record: TaskDetailRecord) {
   }
 
   return 'Drawing';
+}
+
+function getVisitStatusTone(status?: string) {
+  if (status === 'Completed') {
+    return {
+      badgeStyle: taskDetailsPanelStyles.statusChipCompleted,
+      textStyle: taskDetailsPanelStyles.statusChipTextCompleted,
+    };
+  }
+
+  if (status === 'InProgress') {
+    return {
+      badgeStyle: taskDetailsPanelStyles.statusChipInProgress,
+      textStyle: taskDetailsPanelStyles.statusChipTextInProgress,
+    };
+  }
+
+  return {
+    badgeStyle: taskDetailsPanelStyles.statusChipNotStarted,
+    textStyle: taskDetailsPanelStyles.statusChipTextNotStarted,
+  };
 }
 
 export function PatientDetailsPanel({ token, facilityId, patientId }: PatientDetailsPanelProps) {
@@ -226,7 +247,7 @@ export function PatientDetailsPanel({ token, facilityId, patientId }: PatientDet
   }
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.content}>
+    <ScrollView style={taskDetailsPanelStyles.panelRoot} contentContainerStyle={taskDetailsPanelStyles.scrollContent}>
       <Card mode="outlined" style={taskDetailsPanelStyles.headerCard}>
         <Card.Content>
           <Text style={taskDetailsPanelStyles.headerEyebrow}>Patient</Text>
@@ -243,8 +264,15 @@ export function PatientDetailsPanel({ token, facilityId, patientId }: PatientDet
         </Card.Content>
       </Card>
 
-      <Card mode="outlined" style={styles.sectionCard}>
-        <Card.Title title="Patient Information" />
+      <Card mode="outlined" style={taskDetailsPanelStyles.sectionCard}>
+        <Card.Content>
+          <View style={taskDetailsPanelStyles.sectionHeader}>
+            <View style={{ flex: 1 }}>
+              <Text style={taskDetailsPanelStyles.sectionHeading}>Patient Information</Text>
+              <Text style={taskDetailsPanelStyles.sectionHint}>Profile and contact details</Text>
+            </View>
+          </View>
+        </Card.Content>
         <Card.Content style={styles.sectionBody}>
           <Row label="Date of Birth" value={formatDate(patient?.dateOfBirth)} />
           <Row label="Email" value={patient?.emailId || '-'} />
@@ -255,12 +283,24 @@ export function PatientDetailsPanel({ token, facilityId, patientId }: PatientDet
         </Card.Content>
       </Card>
 
-      <Card mode="outlined" style={styles.sectionCard}>
-        <Card.Title title="Visits History" subtitle={`${patient?.visits.length ?? 0} visits`} />
+      <Card mode="outlined" style={taskDetailsPanelStyles.sectionCard}>
+        <Card.Content>
+          <View style={taskDetailsPanelStyles.sectionHeader}>
+            <View style={{ flex: 1 }}>
+              <Text style={taskDetailsPanelStyles.sectionHeading}>Visits History</Text>
+              <Text style={taskDetailsPanelStyles.sectionHint}>Latest visits for this patient</Text>
+            </View>
+            <View style={taskDetailsPanelStyles.sectionCountBadge}>
+              <Text style={taskDetailsPanelStyles.sectionCountText}>{`${patient?.visits.length ?? 0} visits`}</Text>
+            </View>
+          </View>
+        </Card.Content>
         <Card.Content style={styles.sectionBody}>
           {(patient?.visits ?? []).map((visit) => {
             const isExpanded = expandedVisitId === visit.id;
             const visitState = visitRecords[visit.id];
+            const visitStatusTone = getVisitStatusTone(visit.visitStatus || visit.status);
+            const visitStatusLabel = (visit.visitStatus || visit.status || 'Scheduled').replace(/([a-z])([A-Z])/g, '$1 $2');
 
             return (
               <View key={visit.id} style={styles.visitCard}>
@@ -272,7 +312,9 @@ export function PatientDetailsPanel({ token, facilityId, patientId }: PatientDet
                     <Text style={styles.visitMeta}>Physician: {formatPhysicianName(visit)}</Text>
                   </View>
                   <View style={styles.visitHeaderActionWrap}>
-                    <Text style={styles.visitStatus}>{(visit.visitStatus || visit.status || 'Scheduled').replace(/([a-z])([A-Z])/g, '$1 $2')}</Text>
+                    <View style={[taskDetailsPanelStyles.statusChip, visitStatusTone.badgeStyle]}>
+                      <Text style={[taskDetailsPanelStyles.statusChipText, visitStatusTone.textStyle]}>{visitStatusLabel}</Text>
+                    </View>
                     <Feather name={isExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={themeColors.textSecondary} />
                   </View>
                 </Pressable>
@@ -289,7 +331,7 @@ export function PatientDetailsPanel({ token, facilityId, patientId }: PatientDet
                       </View>
                     ) : null}
 
-                    {visitState?.errorMessage ? <Text style={allStyles.errorText}>{visitState.errorMessage}</Text> : null}
+                    {visitState?.errorMessage ? <Text style={taskDetailsPanelStyles.errorText}>{visitState.errorMessage}</Text> : null}
 
                     {visitState && !visitState.loading ? (
                       <View style={styles.servicesWrap}>
@@ -343,19 +385,6 @@ function Row({ label, value, multiline = false }: { label: string; value: string
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-  },
-  content: {
-    gap: 10,
-    paddingBottom: 20,
-  },
-  sectionCard: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: themeColors.border,
-    backgroundColor: themeColors.surface,
-  },
   sectionBody: {
     gap: 10,
   },
@@ -403,23 +432,19 @@ const styles = StyleSheet.create({
   },
   visitTitle: {
     color: themeColors.primary,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
   },
   visitSubtitle: {
     color: themeColors.textPrimary,
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '800',
   },
   visitMeta: {
     color: themeColors.textSecondary,
     fontSize: 12,
-  },
-  visitStatus: {
-    color: themeColors.textPrimary,
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
   },
   visitExpandedBody: {
     borderTopWidth: 1,

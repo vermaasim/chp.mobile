@@ -152,6 +152,41 @@ export async function loadPatientsByCreatedDateRange(
   }
 }
 
+export async function loadLastAccessedPatients(
+  token: string,
+  facilityId: string,
+  count: number,
+): Promise<PatientSummary[]> {
+  try {
+    const response = await apiClient.get(`/api/patient/lastaccessed/${facilityId}/${count}`, withAuth(token));
+
+    return asArray<Record<string, unknown>>(response.data)
+      .map(normalizePatientSummary)
+      .filter((item) => Boolean(item.id));
+  } catch (error) {
+    throw new Error(toFriendlyErrorMessage(error, 'Unable to load patients.'));
+  }
+}
+
+export async function searchFacilityPatients(
+  token: string,
+  facilityId: string,
+  keyword: string,
+): Promise<PatientSummary[]> {
+  try {
+    const response = await apiClient.get(
+      `/api/patient/facility/${facilityId}/patientsearch/${encodeURIComponent(keyword)}`,
+      withAuth(token),
+    );
+
+    return asArray<Record<string, unknown>>(response.data)
+      .map(normalizePatientSummary)
+      .filter((item) => Boolean(item.id));
+  } catch (error) {
+    throw new Error(toFriendlyErrorMessage(error, 'Unable to search patients.'));
+  }
+}
+
 export async function loadPatientDetails(token: string, facilityId: string, patientId: string): Promise<PatientDetail> {
   try {
     const response = await apiClient.get(`/api/patient/${patientId}/facility/${facilityId}`, withAuth(token));

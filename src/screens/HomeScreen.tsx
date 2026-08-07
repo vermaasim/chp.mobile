@@ -53,6 +53,12 @@ const MODULE_CONFIGS: Record<ModulePageKey, ModuleConfig> = {
     subtitle: 'Review your assigned services and update records',
     icon: 'clipboard-text-outline',
   },
+  Enquiries: {
+    key: 'Enquiries',
+    title: 'Enquiries',
+    subtitle: 'Track incoming patient and facility enquiries',
+    icon: 'message-text-outline',
+  },
   Visits: {
     key: 'Visits',
     title: 'Visits',
@@ -65,17 +71,11 @@ const MODULE_CONFIGS: Record<ModulePageKey, ModuleConfig> = {
     subtitle: 'Manage patient profiles and records',
     icon: 'account-group-outline',
   },
-  Enquiries: {
-    key: 'Enquiries',
-    title: 'Enquiries',
-    subtitle: 'Track incoming leads and requests',
-    icon: 'help-circle-outline',
-  },
   Billing: {
     key: 'Billing',
     title: 'Billing',
-    subtitle: 'Review billing and collections overview',
-    icon: 'currency-inr',
+    subtitle: 'Review billing activity and collections',
+    icon: 'cash-multiple',
   },
 };
 
@@ -185,7 +185,6 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
   const [summaryItems, setSummaryItems] = useState<HomeDashboardSummaryItem[]>([
     { key: 'tasks', label: 'Tasks', value: '0', metric: 'allTasks' },
     { key: 'new-patients', label: 'New patients', value: '0', metric: 'newPatients' },
-    { key: 'enquiries', label: 'Enquiries', value: '0', metric: 'enquiries' },
   ]);
 
   const activePage = pageStack[pageStack.length - 1];
@@ -220,7 +219,6 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
       setSummaryItems([
         { key: 'tasks', label: 'Tasks', value: '0', metric: 'allTasks' },
         { key: 'new-patients', label: 'New patients', value: '0', metric: 'newPatients' },
-        { key: 'enquiries', label: 'Enquiries', value: '0', metric: 'enquiries' },
       ]);
       return;
     }
@@ -238,7 +236,6 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
           setSummaryItems([
             { key: 'tasks', label: 'Tasks', value: '0', metric: 'allTasks' },
             { key: 'new-patients', label: 'New patients', value: '0', metric: 'newPatients' },
-            { key: 'enquiries', label: 'Enquiries', value: '0', metric: 'enquiries' },
           ]);
         }
       });
@@ -381,13 +378,6 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
         icon: 'account-plus',
         onPress: openNewPatient,
       },
-      {
-        key: 'add-action',
-        title: 'Add action',
-        subtitle: ' ',
-        icon: 'plus-box-outline',
-        onPress: () => undefined,
-      },
     ],
     [openNewVisit, openNewPatient],
   );
@@ -506,6 +496,7 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
           facilityName={activeFacilityName}
           displayName={displayName || user.userName || 'Clinician'}
           onProfilePress={() => setIsProfileMenuVisible(true)}
+          onClose={() => setPageStack(['Home'])}
           onViewPatients={() => setPageStack(['Home', 'Patients'])}
           onSaved={() => setPageStack(['Home'])}
         />
