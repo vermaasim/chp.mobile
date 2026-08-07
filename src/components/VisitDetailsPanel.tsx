@@ -56,6 +56,27 @@ function formatStatus(status?: string) {
   return status.replace(/([a-z])([A-Z])/g, '$1 $2');
 }
 
+function getStatusTone(status?: string) {
+  if (status === 'Completed') {
+    return {
+      badgeStyle: taskDetailsPanelStyles.statusChipCompleted,
+      textStyle: taskDetailsPanelStyles.statusChipTextCompleted,
+    };
+  }
+
+  if (status === 'InProgress') {
+    return {
+      badgeStyle: taskDetailsPanelStyles.statusChipInProgress,
+      textStyle: taskDetailsPanelStyles.statusChipTextInProgress,
+    };
+  }
+
+  return {
+    badgeStyle: taskDetailsPanelStyles.statusChipNotStarted,
+    textStyle: taskDetailsPanelStyles.statusChipTextNotStarted,
+  };
+}
+
 function asCurrency(value?: number) {
   if (typeof value !== 'number') {
     return 'Rs 0.00';
@@ -110,16 +131,6 @@ export function VisitDetailsPanel({ token, facilityId, visitId }: VisitDetailsPa
     };
   }, [token, facilityId, visitId]);
 
-  const headerMetaRows = useMemo(
-    () => [
-      { key: 'Visit ID', value: visit?.displayId || visit?.visitDisplayId || visit?.id || '-' },
-      { key: 'Status', value: formatStatus(visit?.visitStatus || visit?.status) },
-      { key: 'Physician', value: formatPhysician(visit) },
-      { key: 'Visit Time', value: formatDateTime(visit?.scheduledStartDateTime) },
-    ],
-    [visit],
-  );
-
   if (loading) {
     return <CenteredLoader message="Loading visit details..." containerStyle={taskDetailsPanelStyles.loadingWrap} />;
   }
@@ -129,19 +140,40 @@ export function VisitDetailsPanel({ token, facilityId, visitId }: VisitDetailsPa
   }
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.content}>
-      <Card mode="outlined" style={taskDetailsPanelStyles.headerCard}>
+    <ScrollView style={taskDetailsPanelStyles.panelRoot} contentContainerStyle={taskDetailsPanelStyles.scrollContent}>
+      <Card mode="outlined" style={[taskDetailsPanelStyles.headerCard, styles.headerCard]}>
         <Card.Content>
-          <Text style={taskDetailsPanelStyles.headerEyebrow}>Patient</Text>
-          <Text style={taskDetailsPanelStyles.title}>{formatPatientName(visit)}</Text>
+          <View style={taskDetailsPanelStyles.statusRow}>
+            <View style={taskDetailsPanelStyles.titleBlock}>
+              <Text style={taskDetailsPanelStyles.headerEyebrow}>Visit Details</Text>
+              <Text style={taskDetailsPanelStyles.title}>{formatPatientName(visit)}</Text>
+              <Text style={taskDetailsPanelStyles.subTitle}>{visit?.primaryServiceName || 'Visit details'}</Text>
+            </View>
+
+            <View style={[taskDetailsPanelStyles.statusChip, getStatusTone(visit?.visitStatus || visit?.status).badgeStyle]}>
+              <Text style={[taskDetailsPanelStyles.statusChipText, getStatusTone(visit?.visitStatus || visit?.status).textStyle]}>
+                {formatStatus(visit?.visitStatus || visit?.status)}
+              </Text>
+            </View>
+          </View>
 
           <View style={taskDetailsPanelStyles.metaGrid}>
-            {headerMetaRows.map((row) => (
-              <View key={row.key} style={taskDetailsPanelStyles.metaRowCard}>
-                <Text style={taskDetailsPanelStyles.metaKey}>{row.key}</Text>
-                <Text style={taskDetailsPanelStyles.metaValue}>{row.value}</Text>
+            <View style={taskDetailsPanelStyles.metaRowCard}>
+              <View style={taskDetailsPanelStyles.metaTwoColRow}>
+                <View style={taskDetailsPanelStyles.metaFieldBlock}>
+                  <Text style={taskDetailsPanelStyles.metaLabel}>Visit ID</Text>
+                  <Text style={taskDetailsPanelStyles.metaText}>{visit?.displayId || visit?.visitDisplayId || visit?.id || '-'}</Text>
+                </View>
+                <View style={taskDetailsPanelStyles.metaFieldBlock}>
+                  <Text style={taskDetailsPanelStyles.metaLabel}>Physician</Text>
+                  <Text style={taskDetailsPanelStyles.metaText}>{formatPhysician(visit)}</Text>
+                </View>
               </View>
-            ))}
+              <View style={taskDetailsPanelStyles.metaFieldBlock}>
+                <Text style={taskDetailsPanelStyles.metaLabel}>Visit Time</Text>
+                <Text style={taskDetailsPanelStyles.metaText}>{formatDateTime(visit?.scheduledStartDateTime)}</Text>
+              </View>
+            </View>
           </View>
         </Card.Content>
       </Card>
@@ -202,12 +234,9 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-  },
-  content: {
-    gap: 10,
-    paddingBottom: 20,
+  headerCard: {
+    marginTop: 10,
+    marginBottom: 2,
   },
   sectionCard: {
     borderRadius: 12,

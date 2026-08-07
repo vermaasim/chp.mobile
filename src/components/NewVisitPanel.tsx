@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Avatar, IconButton } from 'react-native-paper';
+import { IconButton } from 'react-native-paper';
 import { createVisit, loadClinicalServices, loadFacilityPhysicians, searchPatients } from '../api/visits';
-import { BrandLogo } from './BrandLogo';
 import { CenteredLoader } from './CenteredLoader';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
+import { allStyles } from '../styles/commonStyles';
 import { themeColors } from '../theme/colors';
 import type { ClinicalServiceOption, PatientOption, PhysicianOption, VisitType } from '../types/visits';
 
@@ -17,6 +17,7 @@ interface NewVisitPanelProps {
   facilityName: string;
   displayName: string;
   onProfilePress: () => void;
+  onClose: () => void;
   onViewVisits?: () => void;
   onSaved: () => void;
 }
@@ -86,6 +87,7 @@ export function NewVisitPanel({
   facilityName,
   displayName,
   onProfilePress,
+  onClose,
   onViewVisits,
   onSaved,
 }: NewVisitPanelProps) {
@@ -703,7 +705,7 @@ export function NewVisitPanel({
   };
 
   const renderSuccessScreen = () => (
-    <View style={[styles.successScreen, { paddingHorizontal: layout.horizontalPadding }]}>
+    <View style={styles.successScreen}>
       <View style={[styles.successCard, layout.formMaxWidth ? { maxWidth: layout.formMaxWidth } : null]}>
         <View style={styles.successIconWrap}>
           <Feather name="check-circle" size={34} color={themeColors.primary} />
@@ -740,83 +742,77 @@ export function NewVisitPanel({
   );
 
   return (
-    <View style={styles.screen}>
-      <View style={[styles.headerShell, { paddingTop: Math.max(6, insets.top + 4), paddingHorizontal: layout.horizontalPadding }]}>
-        <View style={[styles.headerInner, layout.formMaxWidth ? { maxWidth: layout.formMaxWidth } : null]}>
-          <View style={styles.topBarRow}>
-            <View style={styles.topLogoWrap}>
-              <BrandLogo width={108} height={26} />
-            </View>
-            <View style={styles.brandWrap}>
-              <Text numberOfLines={1} style={styles.facilityName}>{facilityName}</Text>
-              <Text style={styles.brandSubtitle}>Click Health Pro</Text>
-            </View>
-            <Pressable accessibilityRole="button" accessibilityLabel="Open profile" onPress={onProfilePress}>
-              <Avatar.Text size={36} label={toInitials(displayName)} style={styles.profileAvatar} labelStyle={styles.profileAvatarLabel} />
-            </Pressable>
+    <Modal animationType="slide" visible onRequestClose={onClose}>
+      <View style={allStyles.modalScreen}>
+        <View style={[allStyles.modalHeader, { paddingTop: Math.max(16, insets.top + 8) }]}>
+          <View style={[styles.headerTextWrap, layout.formMaxWidth ? { maxWidth: layout.formMaxWidth } : null]}>
+            <Text style={allStyles.modalTitle}>New visit</Text>
+            <Text numberOfLines={1} style={styles.headerSubtitle}>{facilityName}</Text>
           </View>
-
-          <View style={styles.titleBlock}>
-            <Text style={styles.title}>New visit</Text>
-            <Text style={styles.stepTitle}>{`Step ${currentStepIndex + 1} of 4 · ${STEP_CONFIG[currentStepIndex].title}`}</Text>
-          </View>
-
-          <View style={styles.progressRow}>
-            {STEP_CONFIG.map((step, index) => (
-              <View key={step.key} style={[styles.progressSegment, index <= currentStepIndex ? styles.progressSegmentActive : null]} />
-            ))}
-          </View>
+          <IconButton accessibilityLabel="Close new visit" icon="close" size={20} iconColor={themeColors.textSecondary} onPress={onClose} style={styles.closeButton} />
         </View>
+
+        {visitCreatedSuccessfully ? (
+          renderSuccessScreen()
+        ) : (
+          <>
+            <ScrollView
+              style={allStyles.modalScroll}
+              contentContainerStyle={[allStyles.modalBodyWithFooter, { paddingBottom: Math.max(layout.footerReserve, insets.bottom + 20) }]}
+            >
+              <View style={[styles.formContainer, layout.formMaxWidth ? { maxWidth: layout.formMaxWidth } : null]}>
+                {loadingFormData ? (
+                  <CenteredLoader message="Loading visit form options..." containerStyle={styles.loadingCard} />
+                ) : null}
+
+                {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
+
+                <View style={styles.stepHeader}>
+                  <Text style={styles.stepTitle}>{`Step ${currentStepIndex + 1} of 4 · ${STEP_CONFIG[currentStepIndex].title}`}</Text>
+                  <View style={styles.progressRow}>
+                    {STEP_CONFIG.map((step, index) => (
+                      <View key={step.key} style={[styles.progressSegment, index <= currentStepIndex ? styles.progressSegmentActive : null]} />
+                    ))}
+                  </View>
+                </View>
+
+                {renderStepContent()}
+              </View>
+            </ScrollView>
+
+            <View style={[allStyles.modalFooter, { paddingBottom: Math.max(14, insets.bottom + 14) }]}>
+              <View style={[styles.footerInner, layout.formMaxWidth ? { maxWidth: layout.formMaxWidth } : null]}>
+                <Pressable
+                  accessibilityRole="button"
+                  style={[styles.footerButton, styles.footerButtonSecondary, isFirstStep ? styles.footerButtonDisabled : null]}
+                  onPress={goToPreviousStep}
+                  disabled={isFirstStep}
+                >
+                  <Text style={[styles.footerButtonTextSecondary, isFirstStep ? styles.footerButtonTextDisabled : null]}>Back</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  style={[styles.footerButton, styles.footerButtonPrimary, saving ? styles.footerButtonDisabled : null]}
+                  onPress={goToNextStep}
+                  disabled={saving}
+                >
+                  <Text style={styles.footerButtonTextPrimary}>{saving ? 'Saving visit...' : isLastStep ? 'Save visit' : `Next: ${STEP_CONFIG[currentStepIndex + 1].title}`}</Text>
+                </Pressable>
+              </View>
+            </View>
+
+            {showDatePicker ? (
+              <DateTimePicker
+                value={datePickerTarget === 'date' ? selectedDate : datePickerTarget === 'from' ? scheduledFrom : scheduledTo}
+                mode={datePickerTarget === 'date' ? 'date' : 'time'}
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onChange={onDateTimeChange}
+              />
+            ) : null}
+          </>
+        )}
       </View>
-
-      {visitCreatedSuccessfully ? (
-        renderSuccessScreen()
-      ) : (
-        <>
-          <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingHorizontal: layout.horizontalPadding, paddingBottom: Math.max(layout.footerReserve, insets.bottom + 96) }]}>
-            <View style={[styles.formContainer, layout.formMaxWidth ? { maxWidth: layout.formMaxWidth } : null]}>
-        {loadingFormData ? (
-          <CenteredLoader message="Loading visit form options..." containerStyle={styles.loadingCard} />
-        ) : null}
-
-        {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
-
-        {renderStepContent()}
-            </View>
-          </ScrollView>
-
-          <View style={[styles.footer, { paddingBottom: Math.max(16, insets.bottom + 12), paddingHorizontal: layout.horizontalPadding }]}>
-            <View style={[styles.footerInner, layout.formMaxWidth ? { maxWidth: layout.formMaxWidth } : null]}>
-              <Pressable
-                accessibilityRole="button"
-                style={[styles.footerButton, styles.footerButtonSecondary, isFirstStep ? styles.footerButtonDisabled : null]}
-                onPress={goToPreviousStep}
-                disabled={isFirstStep}
-              >
-                <Text style={[styles.footerButtonTextSecondary, isFirstStep ? styles.footerButtonTextDisabled : null]}>Back</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                style={[styles.footerButton, styles.footerButtonPrimary, saving ? styles.footerButtonDisabled : null]}
-                onPress={goToNextStep}
-                disabled={saving}
-              >
-                <Text style={styles.footerButtonTextPrimary}>{saving ? 'Saving visit...' : isLastStep ? 'Save visit' : `Next: ${STEP_CONFIG[currentStepIndex + 1].title}`}</Text>
-              </Pressable>
-            </View>
-          </View>
-
-          {showDatePicker ? (
-            <DateTimePicker
-              value={datePickerTarget === 'date' ? selectedDate : datePickerTarget === 'from' ? scheduledFrom : scheduledTo}
-              mode={datePickerTarget === 'date' ? 'date' : 'time'}
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={onDateTimeChange}
-            />
-          ) : null}
-        </>
-      )}
-    </View>
+    </Modal>
   );
 }
 
@@ -833,57 +829,32 @@ const styles = StyleSheet.create({
     width: '100%',
     alignSelf: 'center',
   },
-  topBarRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  topLogoWrap: {
-    width: 108,
-    minHeight: 38,
-    justifyContent: 'center',
-  },
-  brandWrap: {
+  headerTextWrap: {
     flex: 1,
-    alignItems: 'center',
     gap: 2,
+    paddingRight: 12,
   },
-  facilityName: {
-    color: themeColors.textPrimary,
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  brandSubtitle: {
+  headerSubtitle: {
     color: themeColors.textSecondary,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
   },
-  profileAvatar: {
-    backgroundColor: themeColors.primary,
+  closeButton: {
+    margin: 0,
   },
-  profileAvatarLabel: {
-    color: themeColors.textOnBrand,
-    fontWeight: '700',
-  },
-  titleBlock: {
-    marginTop: 14,
+  stepHeader: {
     gap: 4,
-  },
-  title: {
-    color: themeColors.textPrimary,
-    fontSize: 20,
-    fontWeight: '800',
+    marginBottom: 2,
   },
   stepTitle: {
     color: themeColors.textSecondary,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
   },
   progressRow: {
     flexDirection: 'row',
     gap: 6,
-    marginTop: 10,
+    marginTop: 2,
   },
   progressSegment: {
     flex: 1,
@@ -893,13 +864,6 @@ const styles = StyleSheet.create({
   },
   progressSegmentActive: {
     backgroundColor: themeColors.primary,
-  },
-  scroll: {
-    flex: 1,
-  },
-  content: {
-    paddingTop: 8,
-    gap: 14,
   },
   formContainer: {
     width: '100%',

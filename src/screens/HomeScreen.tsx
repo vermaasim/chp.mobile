@@ -449,6 +449,7 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
           facilityName={activeFacilityName}
           displayName={displayName || user.userName || 'Clinician'}
           onProfilePress={() => setIsProfileMenuVisible(true)}
+          onClose={() => setPageStack(['Home'])}
           onViewVisits={() => setPageStack(['Home', 'Visits'])}
           onSaved={() => setPageStack(['Home'])}
         />

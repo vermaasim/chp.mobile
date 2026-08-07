@@ -297,10 +297,13 @@ const styles = StyleSheet.create({
     color: themeColors.textSecondary,
   },
   summaryRow: {
+    flex:1,
+    borderWidth:1,
     flexDirection: 'row',
     gap: 6,
   },
   summaryGrid: {
+    flex:1,
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
