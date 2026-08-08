@@ -654,6 +654,7 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
+    paddingTop: 20,
     backgroundColor: themeColors.appBackground,
   },
   homeScreen: {

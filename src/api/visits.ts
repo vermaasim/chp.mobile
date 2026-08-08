@@ -230,7 +230,7 @@ export async function loadVisitLinkedServices(token: string, visitId: string): P
 
 export async function loadVisitBillingSummary(token: string, visitId: string): Promise<VisitBillingSummary | null> {
   try {
-    const response = await apiClient.get(`/api/billing/visitid/${visitId}`, withAuth(token));
+    const response = await apiClient.get(`/api/billing/visit/${visitId}`, withAuth(token));
     const raw = (response.data ?? {}) as Record<string, unknown>;
 
     return {

@@ -309,7 +309,8 @@ const styles = StyleSheet.create({
   },
   summaryCardMobile: {
     flex: 1,
-    minWidth: 0,
+    minWidth: 100,
+    maxWidth: 100,
   },
   summaryValue: {
     color: themeColors.textPrimary,
