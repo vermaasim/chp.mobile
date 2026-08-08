@@ -119,25 +119,18 @@ export function HomeDashboard({
 
         <View style={styles.sectionBlock}>
           <Text style={styles.sectionTitle}>Today's summary</Text>
-          {layout.isTablet ? (
-            <View style={styles.summaryGrid}>
-              {summaryItems.map((item) => (
-                <Pressable key={item.key} style={[styles.summaryCard, styles.summaryCardTablet]} onPress={() => onSummaryItemPress?.(item)}>
-                  <Text style={styles.summaryValue}>{item.value}</Text>
-                  <Text style={styles.summaryLabel}>{item.label}</Text>
-                </Pressable>
-              ))}
-            </View>
-          ) : (
-            <ScrollView horizontal style={styles.summaryRow} showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
-              {summaryItems.map((item) => (
-                <Pressable key={item.key} style={styles.summaryCard} onPress={() => onSummaryItemPress?.(item)}>
-                  <Text style={styles.summaryValue}>{item.value}</Text>
-                  <Text style={styles.summaryLabel}>{item.label}</Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          )}
+          <View style={styles.summaryGrid}>
+            {summaryItems.map((item) => (
+              <Pressable
+                key={item.key}
+                style={[styles.summaryCard, layout.isTablet ? styles.summaryCardTablet : styles.summaryCardMobile]}
+                onPress={() => onSummaryItemPress?.(item)}
+              >
+                <Text style={styles.summaryValue}>{item.value}</Text>
+                <Text style={styles.summaryLabel}>{item.label}</Text>
+              </Pressable>
+            ))}
+          </View>
         </View>
 
         <View style={styles.sectionBlock}>
@@ -296,22 +289,13 @@ const styles = StyleSheet.create({
   quickActionTitleMuted: {
     color: themeColors.textSecondary,
   },
-  summaryRow: {
-    flex:1,
-    borderWidth:1,
-    flexDirection: 'row',
-    gap: 6,
-  },
   summaryGrid: {
-    flex:1,
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
   },
   summaryCard: {
-    flex: 1,
     height: 60,
-    minWidth: 80,
     borderRadius: 10,
     backgroundColor: '#EFF4F4',
     alignItems: 'center',
@@ -319,8 +303,13 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   summaryCardTablet: {
-    minWidth: 130,
+    flexBasis: '24%',
     flexGrow: 1,
+    minWidth: 130,
+  },
+  summaryCardMobile: {
+    flex: 1,
+    minWidth: 0,
   },
   summaryValue: {
     color: themeColors.textPrimary,

@@ -34,7 +34,7 @@ function buildDisplayName(user: AuthSession) {
   return [user.firstName, user.lastName].filter(Boolean).join(' ');
 }
 
-type ModulePageKey = 'My Tasks' | 'Patients' | 'Enquiries' | 'Visits' | 'Billing';
+type ModulePageKey = 'My Tasks' | 'Patients' | 'Visits' | 'Billing';
 type PageKey = 'Home' | ModulePageKey | 'My Attendance' | 'Task Details' | 'Visit Details' | 'New Visit' | 'Patient Details' | 'New Patient';
 
 type ModuleConfig = {
@@ -53,12 +53,12 @@ const MODULE_CONFIGS: Record<ModulePageKey, ModuleConfig> = {
     subtitle: 'Review your assigned services and update records',
     icon: 'clipboard-text-outline',
   },
-  Enquiries: {
-    key: 'Enquiries',
-    title: 'Enquiries',
-    subtitle: 'Track incoming patient and facility enquiries',
-    icon: 'message-text-outline',
-  },
+  // Enquiries: {
+  //   key: 'Enquiries',
+  //   title: 'Enquiries',
+  //   subtitle: 'Track incoming patient and facility enquiries',
+  //   icon: 'message-text-outline',
+  // },
   Visits: {
     key: 'Visits',
     title: 'Visits',
@@ -80,9 +80,9 @@ const MODULE_CONFIGS: Record<ModulePageKey, ModuleConfig> = {
 };
 
 const ROLE_MODULES: Record<NormalizedRole, ModulePageKey[]> = {
-  facilityadmin: ['My Tasks', 'Visits', 'Patients', 'Enquiries', 'Billing'],
+  facilityadmin: ['My Tasks', 'Visits', 'Patients', 'Billing'],
   physician: ['My Tasks', 'Visits', 'Patients'],
-  frontdesk: ['Visits', 'Patients', 'Enquiries'],
+  frontdesk: ['Visits', 'Patients'],
 };
 
 const BOTTOM_BAR_MAX_MODULES = 3;
@@ -555,9 +555,9 @@ export function HomeScreen({ user, onSignOut, onSelectFacility }: HomeScreenProp
       );
     }
 
-    if (activePage === 'Enquiries' || activePage === 'Billing') {
-      return <InfoPlaceholder title={activePage} />;
-    }
+    // if (activePage === 'Enquiries' || activePage === 'Billing') {
+    //   return <InfoPlaceholder title={activePage} />;
+    // }
 
     return <InfoPlaceholder title={activePage} />;
   };
